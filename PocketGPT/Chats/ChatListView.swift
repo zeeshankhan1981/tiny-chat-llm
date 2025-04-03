@@ -52,13 +52,30 @@ struct ChatListView: View {
     func delete(at offsets: IndexSet) {
         let chatsToDelete = offsets.map { self.chats_previews[$0] }
         _ = delete_chats(chatsToDelete)
+        
+        // Force UI update immediately
+        self.chats_previews.remove(atOffsets: offsets)
         refresh_chat_list()
+        
+        // Reset to default chat if needed
+        if self.chat_titles.isEmpty || !self.chat_titles.contains(chat_title ?? "") {
+            chat_title = "MobileVLM V2 3B"
+            aiChatModel.prepare(chat_title: "MobileVLM V2 3B")
+        }
     }
     
     func delete(at elem:Dictionary<String, String>){
-        _ = delete_chats([elem])
-        self.chats_previews.removeAll(where: { $0 == elem })
-        refresh_chat_list()
+        if delete_chats([elem]) {
+            // Immediately remove from chat list
+            self.chats_previews.removeAll(where: { $0["title"] == elem["title"] })
+            refresh_chat_list()
+            
+            // Reset to default chat if needed
+            if self.chat_titles.isEmpty || (chat_title == elem["title"]) {
+                chat_title = "MobileVLM V2 3B"
+                aiChatModel.prepare(chat_title: "MobileVLM V2 3B")
+            }
+        }
     }
 
     func duplicate(at elem:Dictionary<String, String>){
@@ -68,17 +85,29 @@ struct ChatListView: View {
     
     func createNewChat() {
         if !newChatName.isEmpty {
-            // Create a new chat with basic settings
+            // Create a new chat with detailed settings that match the default model
             let chatInfo: [String: Any] = [
                 "title": newChatName,
-                "model": "MobileVLM V2 3B",
+                "model": "MobileVLM V2 3B", // Use the same model as the default chat
                 "inference": "llava",
                 "prompt_format": "llava",
-                "temperature": 0.6
+                "temperature": 0.6,
+                "max_tokens": 1024,
+                "created_at": Date().timeIntervalSince1970
             ]
             
             if create_chat(chatInfo) {
+                // Initialize an empty chat history file for the new chat
+                save_chat_history([], newChatName)
+                
+                // Update the UI
                 refresh_chat_list()
+                
+                // Switch to the new chat and force model initialization
+                chat_title = newChatName
+                aiChatModel.modelType = "MobileVLM V2 3B" // Explicitly set model type
+                aiChatModel.prepare(chat_title: newChatName)
+                
                 toggleAddChat = false
                 newChatName = ""
             }

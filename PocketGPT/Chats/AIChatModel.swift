@@ -15,9 +15,12 @@ final class AIChatModel: ObservableObject {
     @Published var AI_typing = 0
     
     public var chat_name = "MobileVLM V2 3B" // Default chat
+    
+    // Track the model type for the current chat
+    public var modelType: String = "MobileVLM V2 3B"
 
     private var llamaState = LlamaState()
-    private var filename: String = "tinyllama-1.1b-1t-openorca.Q4_0.gguf"
+    private var filename: String = "MobileVLM_V2-3B-ggml-model-q4_k.gguf"
     
     public var numberOfTokens = 0
     public var total_sec = 0.0
@@ -32,6 +35,8 @@ final class AIChatModel: ObservableObject {
     init() {
         // Load default chat on startup
         self.messages = load_chat_history(self.chat_name) ?? []
+        // Initialize the default model
+        loadLlama()
     }
     
     // Save current chat history
@@ -51,31 +56,62 @@ final class AIChatModel: ObservableObject {
             save_chat_history(self.messages, self.chat_name)
             
             self.chat_name = new_chat_name
-            self.messages = []
-            Task {
-                // Load history for the new chat
-                if let history = load_chat_history(new_chat_name) {
-                    self.messages = history
+            
+            // Load history for the new chat
+            if let history = load_chat_history(new_chat_name) {
+                self.messages = history
+            } else {
+                self.messages = []
+            }
+            
+            // Reset UI state
+            self.AI_typing = -Int.random(in: 0..<100000)
+            
+            // Get the model type from chat configuration
+            if let chatInfo = getChatConfiguration(new_chat_name) {
+                if let modelName = chatInfo["model"] as? String {
+                    self.modelType = modelName
                 } else {
-                    self.messages = []
+                    self.modelType = "MobileVLM V2 3B" // Default model
                 }
-                self.AI_typing = -Int.random(in: 0..<100000)
-                
-                self.llamaState = LlamaState() // release old one, and create new one
-                if self.sdPipeline != nil {
-                    Task.detached() {
-                        await self.sdPipeline?.unloadResources()
-                    }
-                }
-                
-                if self.chat_name == "Chat" || self.chat_name == "MobileVLM V2 3B" {
-                    loadLlava()
-                } else if self.chat_name == "SD_Turbo" || self.chat_name == "Image Creation" {
-                    Task.detached {
-                        await self.loadSDTurbo()
-                    }
+            } else {
+                self.modelType = "MobileVLM V2 3B" // Default if no config found
+            }
+            
+            // Properly clean up old resources
+            let oldLlamaState = self.llamaState
+            self.llamaState = LlamaState()
+            
+            // Clean up SD pipeline if it exists
+            if self.sdPipeline != nil {
+                Task {
+                    await self.sdPipeline?.unloadResources()
+                    self.sdPipeline = nil
                 }
             }
+            
+            // Initialize the appropriate model based on model type
+            initializeModel()
+        }
+    }
+    
+    // Get chat configuration if available
+    private func getChatConfiguration(_ chatName: String) -> [String: Any]? {
+        return get_chat_config(chatName)
+    }
+    
+    // Initialize the model based on the current modelType
+    private func initializeModel() {
+        switch modelType {
+        case "MobileVLM V2 3B":
+            loadLlava()
+        case "SD_Turbo", "Image Creation":
+            Task {
+                await loadSDTurbo()
+            }
+        default:
+            // For any other model type, use loadLlava as default for now
+            loadLlava()
         }
     }
     
@@ -129,26 +165,69 @@ final class AIChatModel: ObservableObject {
     public func loadLlava() {
         do {
             llamaState = LlamaState()
+            
+            // Verify model files exist before attempting to load
+            let modelPath = "MobileVLM_V2-3B-ggml-model-q4_k"
+            let mmProjPath = "MobileVLM_V2-3B-mmproj-model-f16"
+            
+            // Check if we have the model files in the bundle
+            guard let modelURL = Bundle.main.url(forResource: "llm/\(modelPath)", withExtension: "gguf"),
+                  let mmProjURL = Bundle.main.url(forResource: "llm/\(mmProjPath)", withExtension: "gguf") else {
+                print("ERROR: Could not find MobileVLM model files in Resources/llm directory")
+                
+                // List all resources for debugging
+                print("Available resources in bundle:")
+                let bundles = Bundle.main.paths(forResourcesOfType: "gguf", inDirectory: nil)
+                if bundles.isEmpty {
+                    print("No .gguf files found in bundle")
+                } else {
+                    for bundle in bundles {
+                        print("Found model: \(bundle)")
+                    }
+                }
+                return
+            }
+            
+            // Files exist, try to load the model
+            print("Loading MobileVLM model from: \(modelURL.path)")
             try llamaState.loadModelLlava()
+            print("MobileVLM model loaded successfully")
+            
+            // Load chat history if available
             self.messages = load_chat_history(self.chat_name) ?? []
             self.AI_typing = -Int.random(in: 0..<100000)
         } catch let err {
-            print("llava loading Error: \(err.localizedDescription)")
+            print("ERROR loading MobileVLM model: \(err.localizedDescription)")
         }
     }
         
     public func loadLlama() {
-        print("Loading model \(filename)...")
-        let fileURL = getFileURL(filename: filename)
-        if !FileManager.default.fileExists(atPath: fileURL.path) {
-            print("Error: \(fileURL.path) does not exist!")
-            return
-        }
-        do {
-            try llamaState.loadModel(modelUrl: fileURL)
-            print("model loaded from \(fileURL.path)")
-        } catch let err {
-            print("Error: \(err.localizedDescription)")
+        print("Loading MobileVLM models...")
+        
+        // Look specifically for the MobileVLM models in the Resources/llm directory
+        let modelPath = "MobileVLM_V2-3B-ggml-model-q4_k"
+        let mmProjPath = "MobileVLM_V2-3B-mmproj-model-f16"
+        
+        // Try to load from Resources/llm directory
+        if let modelURL = Bundle.main.url(forResource: "llm/\(modelPath)", withExtension: "gguf"),
+           let mmProjURL = Bundle.main.url(forResource: "llm/\(mmProjPath)", withExtension: "gguf") {
+            do {
+                // Load the main model file
+                try llamaState.loadModel(modelUrl: modelURL)
+                print("MobileVLM model loaded successfully from: \(modelURL.path)")
+                return
+            } catch let err {
+                print("Error loading MobileVLM model: \(err.localizedDescription)")
+            }
+        } else {
+            print("Could not find MobileVLM model files in Resources/llm directory")
+            
+            // List all .gguf files in the bundle for debugging
+            print("Available .gguf files in bundle:")
+            let bundles = Bundle.main.paths(forResourcesOfType: "gguf", inDirectory: nil)
+            for bundle in bundles {
+                print("Found model: \(bundle)")
+            }
         }
     }
     

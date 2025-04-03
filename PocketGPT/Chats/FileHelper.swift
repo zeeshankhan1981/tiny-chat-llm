@@ -202,23 +202,39 @@ func clear_chat_history(_ chat_name: String) {
 
 // Legacy functions for compatibility
 func delete_chats(_ chats: [Dictionary<String, String>]) -> Bool {
+    var success = true
     for chat in chats {
         if let title = chat["title"] {
-            clear_chat_history(title)
+            do {
+                let fileManager = FileManager.default
+                let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+                let historyPath = documentsPath.appendingPathComponent("history")
+                let fileURL = historyPath.appendingPathComponent("\(title).json")
+                
+                if fileManager.fileExists(atPath: fileURL.path) {
+                    try fileManager.removeItem(at: fileURL)
+                    print("Deleted chat history at \(fileURL.path)")
+                }
+                
+                // Also delete any chat config files
+                let chatsPath = documentsPath.appendingPathComponent("chats")
+                if fileManager.fileExists(atPath: chatsPath.path) {
+                    let chatFiles = try fileManager.contentsOfDirectory(at: chatsPath, includingPropertiesForKeys: nil)
+                    for file in chatFiles {
+                        let fileName = file.lastPathComponent
+                        if fileName.contains(title) {
+                            try fileManager.removeItem(at: file)
+                            print("Deleted chat config at \(file.path)")
+                        }
+                    }
+                }
+            } catch {
+                print("Error deleting chat: \(error.localizedDescription)")
+                success = false
+            }
         }
     }
-    return true
-}
-
-func duplicate_chat(_ chat: Dictionary<String, String>) -> Bool {
-    if let title = chat["title"] {
-        let newTitle = title + " Copy"
-        if let messages = load_chat_history(title) {
-            save_chat_history(messages, newTitle)
-            return true
-        }
-    }
-    return false
+    return success
 }
 
 public func get_chat_info(_ chat_fname:String) -> Dictionary<String, AnyObject>? {
@@ -585,4 +601,54 @@ struct InputDoument: FileDocument {
         return FileWrapper(regularFileWithContents: input.data(using: .utf8)!)
     }
     
+}
+
+func duplicate_chat(_ chat: Dictionary<String, String>) -> Bool {
+    if let title = chat["title"] {
+        let newTitle = title + " Copy"
+        if let messages = load_chat_history(title) {
+            save_chat_history(messages, newTitle)
+            return true
+        }
+    }
+    return false
+}
+
+// Get the configuration for a specific chat
+func get_chat_config(_ chat_name: String) -> [String: Any]? {
+    do {
+        let fileManager = FileManager.default
+        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let chatsPath = documentsPath.appendingPathComponent("chats")
+        
+        if !fileManager.fileExists(atPath: chatsPath.path) {
+            try fileManager.createDirectory(at: chatsPath, withIntermediateDirectories: true, attributes: nil)
+            return nil // No config exists yet
+        }
+        
+        // Try to find the config file for this chat
+        do {
+            let chatFiles = try fileManager.contentsOfDirectory(at: chatsPath, includingPropertiesForKeys: nil)
+            for file in chatFiles {
+                let fileName = file.lastPathComponent
+                // Match file by title prefix - this is not exact but should work for our case
+                if fileName.contains(chat_name) && fileName.hasSuffix(".json") {
+                    // Found a config file for this chat
+                    let data = try Data(contentsOf: file)
+                    if let config = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        return config
+                    }
+                }
+            }
+        } catch {
+            print("Error looking for chat config: \(error.localizedDescription)")
+        }
+        
+        // Default config when no specific configuration is found
+        return ["model": "MobileVLM V2 3B", "inference": "llava", "prompt_format": "llava", "temperature": 0.6]
+        
+    } catch {
+        print("Error accessing chat config: \(error.localizedDescription)")
+        return nil
+    }
 }
