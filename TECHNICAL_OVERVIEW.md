@@ -1,6 +1,6 @@
 # TinyChat Technical Overview
 
-TinyChat is an iOS application that runs multimodal language models, Stable Diffusion, and Whisper fully on-device with no data sent to external servers, ensuring complete privacy.
+TinyChat is an iOS application that runs multimodal language models and Stable Diffusion fully on-device with no data sent to external servers, ensuring complete privacy.
 
 ## Architecture Overview
 
@@ -37,8 +37,7 @@ Main state container that:
 - **ChatView** - Main conversation interface with date-grouped messages
 - **ChatListView** - Navigation/selection between different chat modes
 - **MessageView** - Individual message rendering with timestamps, status indicators, and context menus
-- **LLMTextInput** - Rich text input with formatting tools, image upload, and voice capabilities
-- **VoiceView** - Interface for voice input using Whisper
+- **LLMTextInput** - Rich text input with formatting tools and image upload capabilities
 
 ### Enhanced Message System
 
@@ -94,20 +93,12 @@ TinyChat uses a forked version of llama.cpp (llamaforked) to run large language 
 - **Quantization**: 8-bit for efficient on-device performance
 - **Processing**: Asynchronous image generation with progress callbacks
 
-### 4. Voice Processing (Whisper)
-
-- **Model**: Whisper Base (English)
-- **Implementation**: Swift wrapper around C++ Whisper implementation
-- **Recording**: Native iOS audio capture with proper permission handling
-- **Processing**: On-device transcription with real-time feedback
-
 ## File Structure
 
 ```
 TinyChat/
 ├── Model/                  # ML model interfaces
 │   ├── LibLlama.swift      # C++ bridge to llama.cpp
-│   ├── LibLlava.swift      # C++ bridge to llava (multimodal)
 │   └── LlamaState.swift    # Swift wrapper for model management
 ├── Chats/                  # Chat UI and management
 │   ├── AIChatModel.swift   # Core chat state management
@@ -116,14 +107,11 @@ TinyChat/
 │   ├── MessageView.swift   # Individual message UI
 │   ├── LLMTextInput.swift  # Text input component
 │   ├── Message.swift       # Message data structure
-│   ├── FileHelper.swift    # File persistence utilities
-│   └── VoiceView.swift     # Voice interface
+│   └── FileHelper.swift    # File persistence utilities
 ├── StableDiffusion/        # Image generation components
-├── Whisper/                # Voice transcription components
 ├── Resources/              # Bundled models and assets
 │   ├── llm/                # LLM model files
-│   ├── sd_turbo/           # Stable Diffusion model files
-│   └── whisper/            # Whisper model files
+│   └── sd_turbo/           # Stable Diffusion model files
 ├── Assets.xcassets/        # App images and assets
 └── AppTheme.swift          # Global theming system
 ```

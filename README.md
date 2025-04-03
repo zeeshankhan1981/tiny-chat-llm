@@ -10,7 +10,6 @@ A privacy-focused iOS app that runs Multimodal LLM, Stable Diffusion, and Whispe
 
 - **Text Chat**: Engage with a modern LLM entirely on your device
 - **Image Understanding**: Show images to the AI and discuss them
-- **Voice Input**: Speak to the app with Whisper voice-to-text
 - **Complete Privacy**: 100% on-device processing, no API keys or servers needed
 - **Modern UI**: Clean, Todoist-inspired design with message grouping and formatting options
 - **Context Menu**: Easily copy messages or save images
@@ -89,6 +88,10 @@ This app integrates several open-source projects and models:
 ### Models
 - MLLM: [MobileVLM V2 3B](https://github.com/Meituan-AutoML/MobileVLM), quantized to 4 bits
 - Audio: [Whisper Base](https://github.com/openai/whisper), English model
+
+## Credits
+
+TinyChat is based on the open-source structure of PocketGPT, available on the App Store. While PocketGPT offers a comprehensive suite of AI features, TinyChat focuses exclusively on LLM chat capabilities, with plans for ongoing enhancements and new features in the future.
 
 ## Contributing
 

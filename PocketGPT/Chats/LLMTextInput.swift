@@ -35,10 +35,6 @@ struct LLMTextInput: View {
     @State private var selectedItem: PhotosPickerItem?
     @State private var selectedImage: Image?
     
-    @StateObject var whisperState = WhisperState()
-    
-    @State private var showVoiceView = false
-    
     // States for animation
     @State private var isFocused = false
     @State private var showFormatBar = false
@@ -129,8 +125,6 @@ struct LLMTextInput: View {
                             .font(.system(size: 20))
                     }
                     .buttonStyle(.plain)
-                    
-                    voiceButton
                 }
                 .padding(.horizontal, 4)
                 
@@ -156,7 +150,7 @@ struct LLMTextInput: View {
                         showFormatBar = newValue && !input_text.isEmpty
                     }
                 
-                // Send button with adaptive icon
+                // Send button
                 sendButton
             }
             .padding(.horizontal, 16)
@@ -178,10 +172,6 @@ struct LLMTextInput: View {
                 if textFieldFocused {
                     showFormatBar = !newText.isEmpty
                 }
-            }
-            .fullScreenCover(isPresented: $showVoiceView) {
-                VoiceView(showModal: self.$showVoiceView)
-                    .environmentObject(aiChatModel)
             }
         }
     }
@@ -210,30 +200,12 @@ struct LLMTextInput: View {
         }
     }
     
-    private var voiceButton: some View {
-        Button {
-            voiceButtonPressed()
-        } label: {
-            Image(systemName: whisperState.isRecording ? "stop.circle.fill" : "mic")
-                .foregroundColor(whisperState.isRecording ? Theme.accent : Theme.primary)
-                .font(.system(size: 20))
-        }
-        .buttonStyle(.plain)
-    }
-    
-    private func voiceButtonPressed() {
-        Task {
-            await whisperState.toggleRecord()
-            input_text += whisperState.messageLog
-        }
-    }
-    
     private var sendButton: some View {
         Button {
             sendMessageButtonPressed()
             hideKeyboard()
         } label: {
-            Image(systemName: input_text.isEmpty ? "headphones" : "paperplane.fill")
+            Image(systemName: "paperplane.fill")
                 .foregroundColor(Theme.primary)
                 .font(.system(size: 20))
                 .frame(width: 36, height: 36)
@@ -273,9 +245,6 @@ struct LLMTextInput: View {
                 isTextItalic = false
                 isTextCode = false
                 showFormatBar = false
-            } else {
-                // open a voice chat view
-                showVoiceView = true
             }
         }
     }
