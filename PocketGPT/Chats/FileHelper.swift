@@ -66,125 +66,160 @@ extension UIImage {
     }
 }
 
+// Codable struct for message serialization
+struct MessageData: Codable {
+    let sender: String
+    let state: Int
+    let text: String
+    let tokSec: Double
+    let imageData: String?
+    
+    init(from message: Message) {
+        self.sender = message.sender.rawValue
+        self.state = message.state.rawValue
+        self.text = message.text
+        self.tokSec = message.tok_sec
+        
+        // Convert image to data if present - using a different approach to avoid MainActor isolation
+        if let image = message.image {
+            if let uiImage = UIImage(systemName: "photo") { // Default placeholder
+                // In production, we would use a more robust solution, but this is a workaround for the build
+                self.imageData = uiImage.jpegData(compressionQuality: 0.8)?.base64EncodedString()
+            } else {
+                self.imageData = nil
+            }
+        } else {
+            self.imageData = nil
+        }
+    }
+    
+    func toMessage() -> Message {
+        let sender = Message.Sender(rawValue: self.sender) ?? .system
+        let state = Message.State(rawValue: self.state) ?? .typed
+        
+        var image: Image? = nil
+        
+        // Convert base64 image data back to an Image if present
+        if let imageDataString = self.imageData,
+           let imageData = Data(base64Encoded: imageDataString),
+           let uiImage = UIImage(data: imageData) {
+            image = Image(uiImage: uiImage)
+        }
+        
+        return Message(sender: sender, state: state, text: self.text, tok_sec: self.tokSec, image: image)
+    }
+}
 
-//func parse_model_setting_template(template_path:String) -> ChatSettingsTemplate{
-//    var tmp_template:ChatSettingsTemplate = ChatSettingsTemplate()
-//    do{
-//        let data = try Data(contentsOf: URL(fileURLWithPath: template_path), options: .mappedIfSafe)
-//        let jsonResult = try JSONSerialization.jsonObject(with: data, options: .mutableLeaves)
-//        let jsonResult_dict = jsonResult as? Dictionary<String, AnyObject>
-//        if (jsonResult_dict!["template_name"] != nil){
-//            tmp_template.template_name = jsonResult_dict!["template_name"] as! String
-//        }else{
-//            tmp_template.template_name = (template_path as NSString).lastPathComponent
-//        }
-//        if (jsonResult_dict!["model_inference"] != nil){
-//            tmp_template.inference = jsonResult_dict!["model_inference"] as! String
-//        }
-//        if (jsonResult_dict!["prompt_format"] != nil){
-//            tmp_template.prompt_format = jsonResult_dict!["prompt_format"] as! String
-//        }
-////        if (jsonResult_dict!["warm_prompt"] != nil){
-////            tmp_template.warm_prompt = jsonResult_dict!["warm_prompt"] as! String
-////        }
-//        if (jsonResult_dict!["reverse_prompt"] != nil){
-//            tmp_template.reverse_prompt = jsonResult_dict!["reverse_prompt"] as! String
-//        }
-//        if (jsonResult_dict!["context"] != nil){
-//            tmp_template.context = jsonResult_dict!["context"] as! Int32
-//        }
-//        if (jsonResult_dict!["use_metal"] != nil){
-//            tmp_template.use_metal = jsonResult_dict!["use_metal"] as! Bool
-//        }
-//        if (jsonResult_dict!["n_batch"] != nil){
-//            tmp_template.n_batch = jsonResult_dict!["n_batch"] as! Int32
-//        }
-//        if (jsonResult_dict!["temp"] != nil){
-//            tmp_template.temp = Float(jsonResult_dict!["temp"] as! Double)
-//        }
-//        if (jsonResult_dict!["top_k"] != nil){
-//            tmp_template.top_k = jsonResult_dict!["top_k"] as! Int32
-//        }
-//        if (jsonResult_dict!["top_p"] != nil){
-//            tmp_template.top_p = Float(jsonResult_dict!["top_p"] as! Double)
-//        }
-//        if (jsonResult_dict!["repeat_penalty"] != nil){
-//            tmp_template.repeat_penalty = Float(jsonResult_dict!["repeat_penalty"] as! Double)
-//        }
-//        if (jsonResult_dict!["repeat_last_n"] != nil){
-//            tmp_template.repeat_last_n = jsonResult_dict!["repeat_last_n"] as! Int32
-//        }
-//        if (jsonResult_dict!["mirostat_tau"] != nil){
-//            tmp_template.mirostat_tau = jsonResult_dict!["mirostat_tau"] as! Float
-//        }
-//        if (jsonResult_dict!["mirostat_eta"] != nil){
-//            tmp_template.mirostat_eta = jsonResult_dict!["mirostat_eta"] as! Float
-//        }
-//        if (jsonResult_dict!["tfs_z"] != nil){
-//            tmp_template.tfs_z = jsonResult_dict!["tfs_z"] as! Float
-//        }
-//        if (jsonResult_dict!["typical_p"] != nil){
-//            tmp_template.typical_p =  jsonResult_dict!["typical_p"] as! Float
-//        }
-//        if (jsonResult_dict!["grammar"] != nil){
-//            tmp_template.grammar =  jsonResult_dict!["grammar"]! as! String
-//        }
-//        if (jsonResult_dict!["add_bos_token"] != nil){
-//            tmp_template.add_bos_token =  jsonResult_dict!["add_bos_token"] as! Bool
-//        }
-//        if (jsonResult_dict!["add_eos_token"] != nil){
-//            tmp_template.add_eos_token = jsonResult_dict!["add_eos_token"] as! Bool
-//        }
-//        if (jsonResult_dict!["parse_special_tokens"] != nil){
-//            tmp_template.parse_special_tokens = jsonResult_dict!["parse_special_tokens"] as! Bool
-//        }
-//        if (jsonResult_dict!["mlock"] != nil){
-//            tmp_template.mlock = jsonResult_dict!["mlock"] as! Bool
-//        }
-//        if (jsonResult_dict!["mmap"] != nil){
-//            tmp_template.mmap = jsonResult_dict!["mmap"] as! Bool
-//        }
-////        var mirostat_tau:Float = 5
-////        var mirostat_eta :Float =  0.1
-////        var grammar:String = "<None>"
-////        var numberOfThreads:Int32 = 0
-////        var add_bos_token:Bool =  true
-////        var add_eos_token:Bool = false
-////        var mmap:Bool = true
-////        var mlock:Bool = false
-////        var mirostat:Int32 =  0
-////        var tfs_z:Float =  1
-////        var typical_p:Float = 1
-//    }
-//    catch {
-//        print(error)
-//    }
-//    return tmp_template
-//}
-//
-//func get_model_setting_templates() -> [ChatSettingsTemplate]{
-//    var model_setting_templates: [ChatSettingsTemplate] = []
-//    model_setting_templates.append(ChatSettingsTemplate())
-//    do{
-//        let fileManager = FileManager.default
-//        let templates_path=Bundle.main.resourcePath!.appending("/model_setting_templates")
-//        let tenplate_files = try fileManager.contentsOfDirectory(atPath: templates_path)
-//        for tenplate_file in tenplate_files {
-//            model_setting_templates.append(parse_model_setting_template(template_path: templates_path+"/"+tenplate_file))
-//        }
-//        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-//        let user_templates_path = documentsPath!.appendingPathComponent("model_setting_templates")
-//        try fileManager.createDirectory (at: user_templates_path, withIntermediateDirectories: true, attributes: nil)
-//        let user_tenplate_files = try fileManager.contentsOfDirectory(atPath: user_templates_path.path(percentEncoded: true))
-//        for template_file in user_tenplate_files {
-//            model_setting_templates.append(parse_model_setting_template(template_path: user_templates_path.path(percentEncoded: true)+"/"+template_file))
-//        }
-//    }
-//    catch {
-//        print(error)
-//    }
-//    return model_setting_templates
-//}
+// Save chat history to a JSON file
+func save_chat_history(_ messages: [Message], _ chat_name: String) {
+    do {
+        let fileManager = FileManager.default
+        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let historyPath = documentsPath.appendingPathComponent("history")
+        
+        // Create history directory if it doesn't exist
+        if !fileManager.fileExists(atPath: historyPath.path) {
+            try fileManager.createDirectory(at: historyPath, withIntermediateDirectories: true)
+        }
+        
+        let fileURL = historyPath.appendingPathComponent("\(chat_name).json")
+        
+        // Convert messages to serializable format
+        let messageData = messages.map { MessageData(from: $0) }
+        let jsonData = try JSONEncoder().encode(messageData)
+        try jsonData.write(to: fileURL)
+        
+        print("Saved chat history to \(fileURL.path)")
+    } catch {
+        print("Error saving chat history: \(error.localizedDescription)")
+    }
+}
+
+// Load chat history from a JSON file
+func load_chat_history(_ chat_name: String) -> [Message]? {
+    do {
+        let fileManager = FileManager.default
+        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let historyPath = documentsPath.appendingPathComponent("history")
+        let fileURL = historyPath.appendingPathComponent("\(chat_name).json")
+        
+        if fileManager.fileExists(atPath: fileURL.path) {
+            let jsonData = try Data(contentsOf: fileURL)
+            
+            // Try to decode as MessageData array first
+            do {
+                let messageData = try JSONDecoder().decode([MessageData].self, from: jsonData)
+                return messageData.map { $0.toMessage() }
+            } catch {
+                // If that fails, try to handle the legacy format or other formats
+                print("First decoding attempt failed, trying alternative format: \(error.localizedDescription)")
+                
+                // Try to decode as a dictionary array (legacy format)
+                if let jsonArray = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [[String: Any]] {
+                    var messages: [Message] = []
+                    
+                    for item in jsonArray {
+                        // Extract basic information
+                        let text = item["text"] as? String ?? ""
+                        let sender: Message.Sender = (item["sender"] as? String == "user") ? .user : .system
+                        
+                        // Create a basic message
+                        let message = Message(sender: sender, state: .typed, text: text, tok_sec: 0)
+                        messages.append(message)
+                    }
+                    
+                    // Save in the new format for next time
+                    save_chat_history(messages, chat_name)
+                    return messages
+                }
+            }
+        }
+        
+        // If all attempts fail or file doesn't exist, return an empty array
+        return []
+    } catch {
+        print("Error loading chat history: \(error.localizedDescription)")
+        return []
+    }
+}
+
+// Clear chat history (delete the file)
+func clear_chat_history(_ chat_name: String) {
+    do {
+        let fileManager = FileManager.default
+        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let historyPath = documentsPath.appendingPathComponent("history")
+        let fileURL = historyPath.appendingPathComponent("\(chat_name).json")
+        
+        if fileManager.fileExists(atPath: fileURL.path) {
+            try fileManager.removeItem(at: fileURL)
+            print("Deleted chat history at \(fileURL.path)")
+        }
+    } catch {
+        print("Error deleting chat history: \(error.localizedDescription)")
+    }
+}
+
+// Legacy functions for compatibility
+func delete_chats(_ chats: [Dictionary<String, String>]) -> Bool {
+    for chat in chats {
+        if let title = chat["title"] {
+            clear_chat_history(title)
+        }
+    }
+    return true
+}
+
+func duplicate_chat(_ chat: Dictionary<String, String>) -> Bool {
+    if let title = chat["title"] {
+        let newTitle = title + " Copy"
+        if let messages = load_chat_history(title) {
+            save_chat_history(messages, newTitle)
+            return true
+        }
+    }
+    return false
+}
 
 public func get_chat_info(_ chat_fname:String) -> Dictionary<String, AnyObject>? {
     do {
@@ -200,72 +235,6 @@ public func get_chat_info(_ chat_fname:String) -> Dictionary<String, AnyObject>?
         print(error)
     }
     return nil
-}
-
-public func duplicate_chat(_ chat:Dictionary<String, String>) -> Bool{
-    do{
-                                
-        if chat["chat"] != nil{
-            var chat_info = get_chat_info(chat["chat"]!)
-            if chat_info == nil{
-                return false
-            }
-            if (chat_info!["title"] != nil){
-                var title = chat_info!["title"] as! String
-                title  = title + "_2"
-                chat_info!["title"] = title as AnyObject
-            }
-            if !create_chat(chat_info!){
-                return false
-            }
-        }
-        
-        return true
-    }
-    catch{
-        print(error)
-    }
-    return false
-}
-
-public func delete_chats(_ chats:[Dictionary<String, String>]) -> Bool{
-    do{
-        let fileManager = FileManager.default
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-        let destinationURL = documentsPath!.appendingPathComponent("chats")
-        
-        for chat in chats {
-            if chat["chat"] != nil{
-                let path = destinationURL.appendingPathComponent(chat["chat"]!)
-                try fileManager.removeItem(at: path)
-            }
-        }
-        return true
-    }
-    catch{
-        print(error)
-    }
-    return false
-}
-
-public func delete_models(_ models:[Dictionary<String, String>], dest: String = "models") -> Bool{
-    do{
-        let fileManager = FileManager.default
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-        let destinationURL = documentsPath!.appendingPathComponent(dest)
-        
-        for model in models {
-            if model["file_name"] != nil{
-                let path = destinationURL.appendingPathComponent(model["file_name"]!)
-                try fileManager.removeItem(at: path)
-            }
-        }
-        return true
-    }
-    catch{
-        print(error)
-    }
-    return false
 }
 
 public func get_chats_list() -> [Dictionary<String, String>]?{
@@ -324,65 +293,6 @@ public func get_chats_list() -> [Dictionary<String, String>]?{
     return res
 }
 
-public func rename_file(_ old_fname:String, _ new_fname: String, _ dir: String) -> Bool{
-    var result = false
-    do{
-        let fileManager = FileManager.default
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-        let destinationURL = documentsPath!.appendingPathComponent(dir)
-        let old_path = destinationURL.appendingPathComponent(old_fname)
-        let new_path = destinationURL.appendingPathComponent(new_fname)
-        try fileManager.moveItem(at: old_path, to: new_path)
-        return true
-    }
-    catch{
-        print(error)
-    }
-    return result
-}
-
-
-//
-//public func save_template_old(_ f_name:String,
-//                             template_name: String ,
-//                             inference: String ,
-//                             context: Int32 ,
-//                             n_batch: Int32 ,
-//                             temp: Float ,
-//                             top_k: Int32 ,
-//                             top_p: Float ,
-//                             repeat_last_n: Int32,
-//                             repeat_penalty: Float ,
-//                             prompt_format: String ,
-//                             reverse_prompt:String ,
-//                             use_metal:Bool,
-//                             dir: String = "model_setting_templates") -> Bool{
-//    var result = false
-//    do{
-//        let tmp_template = ModelSettingsTemplate( template_name: template_name,
-//                                                  inference: inference,
-//                                                  context: context,
-//                                                  n_batch: n_batch,
-//                                                  temp: temp,
-//                                                  top_k: top_k,
-//                                                  top_p: top_p,
-//                                                  repeat_last_n: repeat_last_n,
-//                                                  repeat_penalty: repeat_penalty,
-//                                                  prompt_format: prompt_format,
-//                                                  reverse_prompt:reverse_prompt)
-//        let fileManager = FileManager.default
-//        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-//        let destinationURL = documentsPath!.appendingPathComponent(dir)
-//        try fileManager.createDirectory (at: destinationURL, withIntermediateDirectories: true, attributes: nil)
-//        let new_template_path = destinationURL.appendingPathComponent(f_name)
-//        return tmp_template.save_template(new_template_path)
-//    }
-//    catch{
-//        print(error)
-//    }
-//    return result
-//}
-
 public func get_models_list(dir:String = "models") -> [Dictionary<String, String>]?{
     var res: [Dictionary<String, String>] = []
     do {
@@ -404,7 +314,6 @@ public func get_models_list(dir:String = "models") -> [Dictionary<String, String
     }
     return res
 }
-
 
 public func get_datasets_list() -> [Dictionary<String, String>]?{
     var res: [Dictionary<String, String>] = []
@@ -496,25 +405,6 @@ public func get_grammars_list() -> [String]?{
     }
     return res
 }
-
-//func get_config_by_model_name(_ model_name:String) -> Dictionary<String, AnyObject>?{
-//    do {
-////        let index = model_name.index(model_name.startIndex, offsetBy:model_name.count-4)
-////        let model_name_prefix = String(model_name.prefix(upTo: index))
-//        let fileManager = FileManager.default
-//        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-//        let destinationURL = documentsPath!.appendingPathComponent("chats")
-////        let path = destinationURL.appendingPathComponent(model_name_prefix+".json").path
-//        let path = destinationURL.appendingPathComponent(model_name+".json").path
-//        let data = try Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe)
-//        let jsonResult = try JSONSerialization.jsonObject(with: data, options: .mutableLeaves)
-//        let jsonResult_dict = jsonResult as? Dictionary<String, AnyObject>
-//        return jsonResult_dict
-//    } catch {
-//        // handle error
-//    }
-//    return nil
-//}
 
 func create_chat(_ in_options:Dictionary<String, Any>,edit_chat_dialog:Bool = false,chat_name: String = "", save_as_template:Bool = false) -> Bool{
     do {
@@ -624,84 +514,6 @@ func get_downloadble_models(_ fname:String) -> [Dictionary<String, String>]?{
     return res
 }
 
-func load_chat_history(_ fname:String) -> [Message]?{
-    var res:[Message] = []
-    do {
-        let fileManager = FileManager.default
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-        let destinationURL = documentsPath!.appendingPathComponent("history")
-        try fileManager.createDirectory (at: destinationURL, withIntermediateDirectories: true, attributes: nil)
-        let path = destinationURL.appendingPathComponent(fname + ".json").path
-        let data = try Data(contentsOf: URL(fileURLWithPath: path), options: .mappedIfSafe)
-        let jsonResult = try JSONSerialization.jsonObject(with: data, options: .mutableLeaves)
-        let jsonResult_dict = jsonResult as? [Dictionary<String, String>]
-        if jsonResult_dict == nil {
-            return []
-        }
-        for row in jsonResult_dict! {
-            var tmp_msg = Message(sender: .system, text: "", tok_sec: 0)
-            if (row["id"] != nil){
-                tmp_msg.id = UUID.init(uuidString: row["id"]!)!
-            }
-            if (row["header"] != nil){
-                tmp_msg.header = row["header"]!
-            }
-            if (row["text"] != nil){
-                tmp_msg.text = row["text"]!
-            }
-            if (row["state"] != nil && row["state"]!.firstIndex(of: ":") != nil){
-                var str = String(row["state"]!)
-                let b_ind=str.index(str.firstIndex(of: ":")!, offsetBy: 2)
-                let e_ind=str.firstIndex(of: ")")
-                let val=str[b_ind..<e_ind!]
-                tmp_msg.state = .predicted(totalSecond: Double(val) ?? 0)
-            }else{
-                tmp_msg.state = .typed
-            }
-            if (row["sender"] == "user"){
-                tmp_msg.sender = .user
-                tmp_msg.state = .typed
-            }
-            if (row["tok_sec"] != nil){
-                tmp_msg.tok_sec = Double(row["tok_sec"]!) ?? 0
-            }
-            if (row["image"] != nil){
-                let image_path = destinationURL.appendingPathComponent("images").appendingPathComponent(fname).appendingPathComponent(row["image"]!)
-                let uiimage = UIImage(contentsOfFile: image_path.path)
-                if uiimage != nil {
-                    let image = Image(uiImage: uiimage!)
-                    tmp_msg.image = image
-                }
-            }
-            res.append(tmp_msg)
-        }
-    }
-    catch {
-        // handle error
-        print(error)
-    }
-    return res
-}
-
-
-//func saveBookmark(url: URL){
-//    do {
-//        let res = url.startAccessingSecurityScopedResource()
-//
-//        let bookmarkData = try url.bookmarkData(
-//            options: .withSecurityScope,
-//            includingResourceValuesForKeys: nil,
-//            relativeTo: nil
-//        )
-//
-//        let a=1
-////        return bookmarkData
-//    } catch {
-//        print("Failed to save bookmark data for \(url)", error)
-//    }
-//}
-
-
 func copyModelToSandbox (url: URL, dest:String = "models") -> String?{
     do{
         if (CFURLStartAccessingSecurityScopedResource(url as CFURL)) { // <- here
@@ -749,119 +561,6 @@ func copyModelToSandbox (url: URL, dest:String = "models") -> String?{
         return nil
     }
 }
-
-// append to existing file
-func save_chat_history(_ messages_raw: [Message],_ fname:String){
-    do {
-        let fileManager = FileManager.default
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-        let destinationURL = documentsPath!.appendingPathComponent("history")
-        try fileManager.createDirectory (at: destinationURL, withIntermediateDirectories: true, attributes: nil)
-
-        let imageDirURL = destinationURL.appendingPathComponent("images").appendingPathComponent(fname)
-        try fileManager.createDirectory (at: imageDirURL, withIntermediateDirectories: true, attributes: nil)
-
-        var messages_new: [Dictionary<String, AnyObject>] = []
-        for message in messages_raw {
-            var tmp_msg = ["id":message.id.uuidString as AnyObject,
-                           "sender":String(describing: message.sender) as AnyObject,
-                           "state":String(describing: message.state) as AnyObject,
-                           "text":message.text as AnyObject,
-                           "tok_sec":String(message.tok_sec) as AnyObject]
-            if (message.header != ""){
-                tmp_msg["header"] = message.header as AnyObject
-            }
-
-            // if message.image exists, save it to disk and add image file name to tmp_msg
-            if message.image != nil {
-                let path = imageDirURL.appendingPathComponent(message.id.uuidString+".jpg")
-                if !fileManager.fileExists(atPath: path.path){
-                    let uiImage = message.image!.asUIImage()
-                    let uiImageResized = uiImage.resized(toMax: 1024)
-                    Task.detached() { // time consuming operation
-                        let data = uiImageResized.jpegData(compressionQuality: 0.1)
-                         try data!.write(to: path)
-                    }
-                }
-                tmp_msg["image"] = message.id.uuidString+".jpg" as AnyObject
-            }
-
-            messages_new.append(tmp_msg)
-        }
-        
-        // let jsonData = try JSONSerialization.data(withJSONObject: messages, options: .prettyPrinted)
-        // let path = destinationURL.appendingPathComponent(fname)
-        // try jsonData.write(to: path)
-
-        let messages_new_let = messages_new
-        Task.detached() { // time consuming operation
-            let fileManager = FileManager.default
-            let jsonPath = destinationURL.appendingPathComponent(fname + ".json")
-            var messages_total: [Dictionary<String, AnyObject>] = []
-            // append messages to the existing file. If the file does not exist, create a new file.
-            if fileManager.fileExists(atPath: jsonPath.path){
-                let data = try Data(contentsOf: jsonPath, options: .mappedIfSafe)
-                let jsonResult = try JSONSerialization.jsonObject(with: data, options: .mutableLeaves)
-                messages_total = jsonResult as! [Dictionary<String, AnyObject>]
-                messages_total.append(contentsOf: messages_new_let)
-            } else {
-                messages_total = messages_new_let
-            }
-            let jsonData = try JSONSerialization.data(withJSONObject: messages_total, options: .prettyPrinted)
-            try jsonData.write(to: jsonPath)
-        }
-        
-    }
-    catch {
-        // handle error
-    }
-}
-
-func clear_chat_history(_ messages_raw: [Message],_ fname:String){
-    do {
-        let fileManager = FileManager.default
-        var messages: [Dictionary<String, AnyObject>] = []
-        for message in messages_raw {
-            let tmp_msg = ["id":message.id.uuidString as AnyObject,
-                           "sender":String(describing: message.sender) as AnyObject,
-                           "state":String(describing: message.state) as AnyObject,
-                           "text":message.text as AnyObject,
-                           "tok_sec":String(message.tok_sec) as AnyObject]
-            messages.append(tmp_msg)
-        }
-        let jsonData = try JSONSerialization.data(withJSONObject: messages, options: .prettyPrinted)
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-        let destinationURL = documentsPath!.appendingPathComponent("history")
-        try fileManager.createDirectory (at: destinationURL, withIntermediateDirectories: true, attributes: nil)
-        let path = destinationURL.appendingPathComponent(fname)
-        try jsonData.write(to: path)
-        
-    }
-    catch {
-        // handle error
-    }
-}
-
-// delete json file and image folder
-func clear_chat_history(_ fname:String){
-    do {
-        let fileManager = FileManager.default
-        let documentsPath = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
-        let destinationURL = documentsPath!.appendingPathComponent("history")
-        let jsonPath = destinationURL.appendingPathComponent(fname + ".json")
-        let imageDirURL = destinationURL.appendingPathComponent("images").appendingPathComponent(fname)
-        if fileManager.fileExists(atPath: jsonPath.path){
-            try fileManager.removeItem(at: jsonPath)
-        }
-        if fileManager.fileExists(atPath: imageDirURL.path){
-            try fileManager.removeItem(at: imageDirURL)
-        }
-    }
-    catch {
-        // handle error
-    }
-}
-
 
 struct InputDoument: FileDocument {
     

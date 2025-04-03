@@ -7,17 +7,40 @@
 import SwiftUI
 
 struct Message: Identifiable {
-    enum State: Equatable {
+    enum State: Equatable, RawRepresentable {
         case none
         case error
         case typed
         case predicting
         case predicted(totalSecond: Double)
+        
+        // Added for serialization
+        var rawValue: Int {
+            switch self {
+            case .none: return 0
+            case .error: return 1
+            case .typed: return 2
+            case .predicting: return 3
+            case .predicted: return 4
+            }
+        }
+        
+        // Initialize from raw value
+        init?(rawValue: Int) {
+            switch rawValue {
+            case 0: self = .none
+            case 1: self = .error
+            case 2: self = .typed
+            case 3: self = .predicting
+            case 4: self = .predicted(totalSecond: 0)
+            default: return nil
+            }
+        }
     }
 
-    enum Sender {
-        case user
-        case system
+    enum Sender: String {
+        case user = "user"
+        case system = "ai"
     }
 
     var id = UUID()

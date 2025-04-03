@@ -13,10 +13,11 @@ import CoreML
 final class AIChatModel: ObservableObject {
     @Published var messages: [Message] = []
     @Published var AI_typing = 0
+    
+    public var chat_name = "MobileVLM V2 3B" // Default chat
 
     private var llamaState = LlamaState()
     private var filename: String = "tinyllama-1.1b-1t-openorca.Q4_0.gguf"
-    public var chat_name = "chat1"
     
     public var numberOfTokens = 0
     public var total_sec = 0.0
@@ -29,15 +30,35 @@ final class AIChatModel: ObservableObject {
     }
     
     init() {
+        // Load default chat on startup
+        self.messages = load_chat_history(self.chat_name) ?? []
     }
     
-    public func prepare(chat_title:String) {
+    // Save current chat history
+    public func save_history() {
+        save_chat_history(self.messages, chat_name)
+    }
+    
+    // Set current chat and load its history
+    public func setCurrentChat(_ chatTitle: String) {
+        prepare(chat_title: chatTitle)
+    }
+    
+    public func prepare(chat_title: String) {
         let new_chat_name = chat_title
         if new_chat_name != self.chat_name {
+            // Save the previous chat history before loading a new one
+            save_chat_history(self.messages, self.chat_name)
+            
             self.chat_name = new_chat_name
             self.messages = []
             Task {
-                self.messages = load_chat_history(self.chat_name)!
+                // Load history for the new chat
+                if let history = load_chat_history(new_chat_name) {
+                    self.messages = history
+                } else {
+                    self.messages = []
+                }
                 self.AI_typing = -Int.random(in: 0..<100000)
                 
                 self.llamaState = LlamaState() // release old one, and create new one
@@ -49,10 +70,34 @@ final class AIChatModel: ObservableObject {
                 
                 if self.chat_name == "Chat" || self.chat_name == "MobileVLM V2 3B" {
                     loadLlava()
-                } else if self.chat_name == "Image Creation" {
-                    loadSD()
+                } else if self.chat_name == "SD_Turbo" || self.chat_name == "Image Creation" {
+                    Task.detached {
+                        await self.loadSDTurbo()
+                    }
                 }
             }
+        }
+    }
+    
+    public func loadSDTurbo() async {
+        do {
+            let resourceURL = Bundle.main.url(forResource: "sd_turbo", withExtension: nil)! // load from main bundle
+            let configuration = MLModelConfiguration()
+            configuration.computeUnits = .cpuAndGPU
+            // count loading time and print
+            let start = DispatchTime.now()
+            let sdPipeline = try StableDiffusionPipeline(resourcesAt: resourceURL,
+                                                     controlNet: [],
+                                                     configuration: configuration,
+                                                     disableSafety: false,
+                                                     reduceMemory: true)
+            try sdPipeline.loadResources()
+            print("sdPipeline loading time: \(Double(DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds) / 1_000_000_000) seconds")
+            await MainActor.run {
+                self.sdPipeline = sdPipeline // assign to main actor's variable on main thread
+            }
+        } catch let err {
+            print("SD loading Error: \(err.localizedDescription)")
         }
     }
     
@@ -83,12 +128,13 @@ final class AIChatModel: ObservableObject {
     
     public func loadLlava() {
         do {
+            llamaState = LlamaState()
             try llamaState.loadModelLlava()
+            self.messages = load_chat_history(self.chat_name) ?? []
+            self.AI_typing = -Int.random(in: 0..<100000)
         } catch let err {
             print("llava loading Error: \(err.localizedDescription)")
         }
-//        self.messages = load_chat_history(self.chat_name+".json")!
-//        self.AI_typing = -Int.random(in: 0..<100000)
     }
         
     public func loadLlama() {
@@ -225,6 +271,9 @@ final class AIChatModel: ObservableObject {
         self.total_sec = 0.0
         self.start_predicting_time = DispatchTime.now()
         
+        // Save the chat history when a new message is sent
+        save_history()
+        
         Task {
             var prompt = ""
             if self.chat_name == "Chat" || self.chat_name == "MobileVLM V2 3B" {
@@ -291,17 +340,6 @@ final class AIChatModel: ObservableObject {
         }
     }
 
-//    public func getSingleAnswer(message in_text: String, _ tokenCallback: ((String)  -> ())?) async {
-//        var prompt = ""
-//        prompt = getConversationPromptLlava(text: in_text)
-//
-//        print("getAnswer: \(in_text)")
-//        await llamaState.completeLlavaSentence(
-//            text: prompt,
-//            tokenCallback
-//        )
-//    }
-
     public func getVoiceAnswer(text_in: String, messages: [Message], _ tokenCallback: ((String)  -> ())?) async -> [Message] {
         print("getVoiceAnswer: \(text_in)")
         var messages_in = messages
@@ -338,5 +376,11 @@ final class AIChatModel: ObservableObject {
 
     public func stopPredicting() {
         llamaState.stopPredicting()
+    }
+
+    // Method to add new message to the current chat
+    public func addMessage(_ message: Message) {
+        messages.append(message)
+        save_history() // Save after each new message
     }
 }
