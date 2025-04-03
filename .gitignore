@@ -1,0 +1,56 @@
+# macOS
+.DS_Store
+
+# Xcode
+## User settings
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+PocketGPT.xcodeproj/xcuserdata/
+PocketGPT.xcodeproj/project.xcworkspace/xcuserdata/
+
+## Build generated
+build/
+DerivedData/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+# Swift Package Manager
+.build/
+Packages/
+Package.pins
+Package.resolved
+.swiftpm/
+
+# ML Models (large files)
+*.gguf
+*.mlmodel
+*.mlmodelc
+*.bin
+*.tflite
+*.metallib
+*.weights
+Resources/
+Models/
+ml-stable-diffusion/
+
+# Generated files
+*.o
+*.pyc
+*.hi
+*.dSYM/
+
+# Project-specific
+screenshots/
+
+# Temporary files
+.tmp/
+.temp/
