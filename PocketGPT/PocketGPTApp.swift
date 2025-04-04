@@ -23,31 +23,31 @@ struct PocketGPTApp: App {
 
     var body: some Scene {
         WindowGroup {
-            // Use ChatListView directly with Todoist-inspired theme
+            // Use standard ChatListView until you run "Build Phases" > "Add UnifiedChatListView.swift"
             ChatListView(
                 chat_titles: $chat_titles,
                 chat_title: $chat_title
             )
-            .environmentObject(aiChatModel)
-            .background(.ultraThinMaterial)
-            .onChange(of: scenePhase) { oldPhase, newPhase in
-                if newPhase == .active {
-                    print("App became active!")
-                    let count = (UserDefaults.standard.object(forKey: udkey_activeCount) as? Int) ?? 0
-                    UserDefaults.standard.set(count + 1, forKey: udkey_activeCount)
-                    
-                    if count == 15 {
-                        // Show review request when user opens app 15 times
-                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                            SKStoreReviewController.requestReview(in: windowScene)
+                .environmentObject(aiChatModel)
+                .background(.ultraThinMaterial)
+                .onChange(of: scenePhase) { oldPhase, newPhase in
+                    if newPhase == .active {
+                        print("App became active!")
+                        let count = (UserDefaults.standard.object(forKey: udkey_activeCount) as? Int) ?? 0
+                        UserDefaults.standard.set(count + 1, forKey: udkey_activeCount)
+                        
+                        if count == 15 {
+                            // Show review request when user opens app 15 times
+                            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                                SKStoreReviewController.requestReview(in: windowScene)
+                            }
                         }
+                    } else if newPhase == .background {
+                        print("App goes to background")
+                        // Save chat history before going to background
+                        aiChatModel.save_history()
                     }
-                } else if newPhase == .background {
-                    print("App goes to background")
-                    // Save chat history before going to background
-                    aiChatModel.save_history()
                 }
-            }
         }
     }
 }

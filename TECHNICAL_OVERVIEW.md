@@ -1,6 +1,6 @@
 # TinyChat Technical Overview
 
-TinyChat is an iOS application that runs multimodal language models and Stable Diffusion fully on-device with no data sent to external servers, ensuring complete privacy.
+TinyChat is an iOS application that runs multimodal language models fully on-device with no data sent to external servers, ensuring complete privacy.
 
 ## Architecture Overview
 
@@ -29,7 +29,7 @@ Main state container that:
 - Manages conversation history with `Message` objects
 - Handles loading appropriate models based on chat type
 - Coordinates file persistence for chat history
-- Formats prompts for different model types (text, multimodal, image generation)
+- Formats prompts for different model types (text, multimodal)
 - Manages real-time UI updates during inference
 
 ### UI Components
@@ -86,13 +86,6 @@ TinyChat uses a forked version of llama.cpp (llamaforked) to run large language 
   - Image projection: `MobileVLM_V2-3B-mmproj-model-f16.gguf`
 - **Implementation**: Custom LlavaContext to handle multimodal inputs
 
-### 3. Image Generation (Stable Diffusion)
-
-- **Model**: SD Turbo
-- **Framework**: Apple's CoreML implementation
-- **Quantization**: 8-bit for efficient on-device performance
-- **Processing**: Asynchronous image generation with progress callbacks
-
 ## File Structure
 
 ```
@@ -108,10 +101,9 @@ TinyChat/
 │   ├── LLMTextInput.swift  # Text input component
 │   ├── Message.swift       # Message data structure
 │   └── FileHelper.swift    # File persistence utilities
-├── StableDiffusion/        # Image generation components
 ├── Resources/              # Bundled models and assets
 │   ├── llm/                # LLM model files
-│   └── sd_turbo/           # Stable Diffusion model files
+│   └── 
 ├── Assets.xcassets/        # App images and assets
 └── AppTheme.swift          # Global theming system
 ```

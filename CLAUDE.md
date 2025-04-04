@@ -10,428 +10,287 @@
 
 - **PocketGPT/**: Main application code
   - **Chats/**: Chat interface and message handling
+    - Simplified home screen UI focusing on chat functionality
+    - Automatic MobileVLM model loading
   - **Model/**: LLM implementation and bridges
   - **CoreData/**: Data persistence layer
-  - **StableDiffusion/**: Image generation components
-  - **Whisper/**: Speech-to-text functionality
+    - **PersistenceController.swift**: Single source of truth for CoreData access
+    - **ChatConversation.xcdatamodeld**: Primary CoreData model for the app
   - **UI/**: Theme and UI components
 
 ## Improvement Priorities
 
-1. Async model loading with progress indicators
-2. CoreData integration for efficient persistence
-3. Separation of concerns in AIChatModel
-4. Model switching at runtime
-5. Enhanced chat history management (search, export)
-6. UI/UX improvements (themes, accessibility)
-7. Comprehensive testing suite
+1. Async model loading with progress indicators (PENDING)
+2. CoreData integration for efficient persistence (PARTIALLY COMPLETE)
+3. Separation of concerns in AIChatModel (PARTIALLY COMPLETE)
+4. Model switching at runtime (PENDING)
+5. Enhanced chat history management (search, export) (PENDING)
+6. UI/UX improvements (themes, accessibility) (PENDING)
+7. Comprehensive testing suite (PENDING)
 
-## Component Removal Plan
+## Completed Tasks
 
-### Stable Diffusion Removal
+### 1. Component Removal (COMPLETED)
 
-1. **Files to Modify**:
+Successfully removed the StableDiffusion and Whisper components from the codebase:
+
+1. **Files Modified**:
    - `AIChatModel.swift`: 
-     - Remove `sdPipeline` property (line 29)
-     - Remove `loadSDTurbo()` and `loadSD()` methods (lines 119-164)
-     - Remove `sdGen()` method (lines 268-301)
-     - Remove "SD_Turbo" and "Image Creation" cases from `initializeModel()` (lines 108-111) 
-     - Remove conditional logic for "Image Creation" in `send()` (lines 318-320, 359-369)
-     - Remove conditional logic for "Image Creation" in `reload()` (lines 103-104)
-     - Remove `getConversationPromptSD()` method (lines 249-253)
+     - Removed `sdPipeline` property
+     - Removed `loadSDTurbo()` and `loadSD()` methods
+     - Removed `sdGen()` method
+     - Removed "SD_Turbo" and "Image Creation" cases from `initializeModel()`
+     - Removed conditional logic for "Image Creation" in `send()`
+     - Removed `getConversationPromptSD()` method
+     - Removed `getVoiceAnswer()` method
 
    - `ChatListView.swift`:
-     - Update filter in `get_chat_mode_list()` (line 30) to remove "Image Creation" filter
+     - Removed "Image Creation" filter from `get_chat_mode_list()`
 
-2. **Directories to Remove**:
-   - `/PocketGPT/StableDiffusion/` (entire directory with all 25 files)
-   - SD resources in `/PocketGPT/Resources/sd_turbo/`
-
-3. **Project File Updates**:
-   - Remove SD model references from project.pbxproj
-   - Remove CoreML framework dependency if not used elsewhere
-
-### Whisper Removal
-
-1. **Files to Remove**:
+2. **Files Removed**:
    - `VoiceView.swift` (complete file)
 
-2. **Files to Modify**:
-   - `AIChatModel.swift`:
-     - Remove `getVoiceAnswer()` method (lines 380-412)
-     - Remove other voice-related methods if present
+3. **Project File Cleanup Tasks** (COMPLETED):
+   - Removed directories `/PocketGPT/StableDiffusion/` and `/PocketGPT/Whisper/` in Xcode
+   - Removed SD/Whisper resources in Xcode project navigator
+   - Removed references to SD/Whisper in documentation
 
-3. **Directories to Remove**:
-   - `/PocketGPT/Whisper/` (entire directory)
-   - Whisper resources in `/PocketGPT/Resources/whisper/`
+### 2. CoreData Implementation Issues Resolution (PARTIALLY COMPLETED)
 
-4. **Project File Updates**:
-   - Remove Whisper references from project.pbxproj
-   - Remove AVFoundation dependency if not used elsewhere
-   - Remove microphone permission if not needed elsewhere
+Successfully identified and resolved critical CoreData implementation issues:
 
-### Implementation Steps
+1. **Duplicate PersistenceController Resolution**:
+   - Identified two competing PersistenceController implementations:
+     - One in `PersistenceController.swift` using "ChatConversation" model
+     - Another in `ChatDataModel.swift` using "ChatModel" model
+   - Removed the duplicate implementation from `ChatDataModel.swift`
+   - Made `PersistenceController` and its `shared` instance public for access
 
-1. Backup the project
-2. Remove directories first to avoid compilation errors
-3. Update AIChatModel.swift to remove SD and Whisper functionality
-4. Remove "Image Creation" references from ChatListView.swift
-5. Remove VoiceView.swift completely
-6. Update Info.plist to remove unneeded permissions
-7. Test core chat functionality after removal
-8. Clean build and test again
+2. **Direct CoreData Access Implementation**:
+   - Implemented direct CoreData context access in `AIChatModel` to resolve scope issues
+   - Created a computed property for viewContext that initializes its own container
+   ```swift
+   private var viewContext: NSManagedObjectContext {
+       let container = NSPersistentContainer(name: "ChatConversation")
+       container.loadPersistentStores { description, error in
+           if let error = error {
+               print("Error loading Core Data: \(error.localizedDescription)")
+           }
+       }
+       return container.viewContext
+   }
+   ```
+   - Updated `AIChatModelExtension` to use the same access pattern
 
-## CoreData Implementation Notes
+3. **Remaining CoreData Issues**:
+   - Multiple files still directly reference `PersistenceController.shared`
+   - Each direct container initialization creates a new CoreData stack
 
-### Current Issues
-- Multiple data models (ChatData, ChatModel, ChatConversation) causing inconsistency
-- Duplicate controllers (PersistenceController, DataController)
-- Incomplete migration from file-based to CoreData storage
-- Poor error handling with `fatalError()` in production code
-- Performance concerns with image conversion
+### 3. Model Loading & Response Generation (COMPLETED)
 
-### Integration Points
-- AIChatModel bridges between file and CoreData storage
-- SwiftUI views depend on in-memory Message objects converted from CoreData
-- Dual storage systems (file-based and CoreData) operate in parallel
-- NewChatListView/EnhancedChatView directly import CoreData for listings
+Successfully fixed critical issues with model loading and response generation:
 
-### Implementation Requirements
-- Preserve compatibility with existing UI components
-- Maintain entity relationships that views depend on
-- Keep consistent image data conversion and message ordering
-- Provide clean migration path from dual storage systems
-- Consolidate multiple data models into a single schema
+1. **Model Initialization Fix**:
+   - Identified mismatch between model initialization and usage
+   - Updated `loadLlama()` method to use `loadModelLlava()` instead of `loadModel()` for proper context initialization
+   - Added logging to track model loading progress and success
 
-## UX Improvement Plan
+2. **Array Safety Implementation**:
+   - Added protective guards against array index out of range crashes
+   - Implemented safety checks in both `AIChatModel.swift` and `AIChatModelExtension.swift`
+   - Added explicit error logging for debugging purposes
+   - Protected against race conditions in message array manipulation
 
-### Critical UX Issues
+3. **Model Response Debug**:
+   - Fixed token generation issues in message handling
+   - Verified proper model loading via debug logs
+   - Confirmed proper CoreData integration in message flow
 
-1. **Inconsistent Navigation Flow**
-   - Multiple overlapping chat views: ChatListView, NewChatListView, MultiChatView with duplicated code
-   - Confusing entry points: Users can "create new chat" both from home screen and direct model access
-   - Fragmented UX patterns between file-based and CoreData-based workflows
+### 4. Home Screen Simplification (COMPLETED)
 
-2. **Model Selection & Management**
-   - No clear model selection interface; model is tied to chat name in a non-intuitive way
-   - Default selection of "MobileVLM V2 3B" hardcoded in multiple places
-   - No visual indication of which model is active or loading state
+Simplified the home screen UI to focus on core chat functionality:
 
-3. **Chat Persistence Confusion**
-   - Dual storage systems (file-based and CoreData) causing inconsistent UX
-   - No clear way for users to understand or manage where their data is stored
-   - Chat title used as primary identifier in both systems, causing potential conflicts
+1. **Removed Model Selection**:
+   - Removed "MobileVLM V2 3B" from default chat titles
+   - Eliminated hardcoded model entry in chat list
+   - Removed model selection UI from home screen
 
-4. **Architectural UX Problems**
-   - AIChatModel handles too many concerns (UI state, chat management, model loading)
-   - Different chat views using different navigation patterns
-   - Inconsistent state management between view reloads
+2. **Simplified Chat Creation**:
+   - Home screen now only shows "New Chat" button
+   - Model loading is automatic when creating new chat
+   - Removed fallback to model selection in chat deletion
 
-## Comprehensive UX Improvement Plan
+3. **UI Clean-up**:
+   - Removed model-related UI elements from chat list
+   - Simplified chat deletion and renaming logic
+   - Updated NewChatSheetView to focus on chat name only
 
-### Phase 1: Core Architecture Refactoring
+### 5. Documentation Update (COMPLETED)
 
-1. **Separate Concerns in AIChatModel**
-   - Create `ModelManager` class to handle model loading, selection, and state
-   - Create `ChatStorageManager` to unify file-based and CoreData operations
-   - Refactor `AIChatModel` to be UI-state focused and delegate storage/model operations
-   - Estimated time: 3-4 days
+Updated the documentation to reflect the recent changes to the home screen and model handling:
 
-2. **Consolidate Chat Views**
-   - Identify the best features from each view implementation (ChatListView, NewChatListView, MultiChatView)
-   - Create a single `UnifiedChatListView` that incorporates the best elements
-   - Implement a shared chat cell component with consistent styling and actions
-   - Estimated time: 2-3 days
+1. **Updated Home Screen Description**:
+   - Removed references to model selection and hardcoded model entry
+   - Added description of simplified chat creation process
 
-### Phase 2: Storage and Model Management
+2. **Updated Model Loading Description**:
+   - Removed references to manual model loading and selection
+   - Added description of automatic model loading during chat creation
 
-1. **Complete CoreData Migration**
-   - Finalize the single data model schema
-   - Create migration utilities for existing file-based chats
+3. **Updated UI Description**:
+   - Removed references to model-related UI elements
+   - Added description of simplified chat list and deletion logic
+
+## Development Roadmap (Updated April 2025)
+
+### Phase 1: Critical Fixes & Stabilization (CURRENT - 1 week)
+
+1. **Core Functionality Fixes** (PARTIALLY COMPLETE)
+   - Resolve duplicate PersistenceController implementation (COMPLETED)
+   - Fix model loading to properly initialize LlavaContext (COMPLETED)
+   - Fix array index out of range crashes in message handling (COMPLETED)
+   - Fix CoreData access patterns in AIChatModel (PARTIALLY COMPLETE)
+   - Simplify home screen UI to focus on chat functionality (COMPLETED)
+   - Apply consistent CoreData context access across remaining files (PENDING)
+   - Verify all chat operations (create, read, update, delete) work with updated CoreData access (PENDING)
+
+2. **Model Functionality Verification** (IN PROGRESS)
+   - Ensure MobileVLM models load correctly (COMPLETED)
+   - Fix token generation in chat responses (COMPLETED)
+   - Validate chat message generation works end-to-end (PENDING)
+   - Optimize prompt formats for better responses (PENDING)
+   - Add proper error handling for model loading failures (PENDING)
+
+3. **Project Cleanup** (PARTIALLY COMPLETE)
+   - Remove Stable Diffusion and Whisper components from code (COMPLETED)
+   - Update documentation to reflect simplified architecture (COMPLETED)
+   - Simplify home screen UI to focus on chat functionality (COMPLETED)
+   - Ensure consistent error handling throughout the app (PENDING)
+   - Remove any unused dependencies from project file (PENDING)
+
+### Phase 2: Architecture Refactoring (1-2 weeks)
+
+1. **Implement Single CoreData Access Pattern** (0-3 days)
+   - Create an Environment Injection pattern for consistent CoreData access
+   - Update all files to use the same context access approach
+   - Add proper background saving context for performance
+   - Implement error recovery mechanisms
+
+2. **Implement Proper Model Management** (3-4 days)
+   - Create ModelManager class to handle model operations
+   - Separate model loading from chat UI logic
+   - Add progress tracking for model loading
+   - Implement proper model switching capability
+
+3. **Improve Storage Management** (3-4 days)
+   - Create ChatStorageManager to unify file and CoreData operations
+   - Implement migration utilities for existing chats
    - Add background saving context for performance
-   - Add proper error handling and recovery
-   - Estimated time: 3-4 days
+   - Create consistent chat history management
 
-2. **Create Model Selection UI**
-   - Design a model selection interface separate from chat creation
-   - Implement model information cards showing capabilities
-   - Create loading indicators for model initialization
-   - Add model switcher in chat settings
-   - Estimated time: 2-3 days
+### Phase 3: UI Improvements (2-3 weeks)
 
-### Phase 3: UI Flow and Navigation Improvements
+1. **Improve Navigation Flow** (4-5 days)
+   - Consolidate UI views into a coherent navigation structure
+   - Implement tab-based navigation for iPhone
+   - Create split-view navigation for iPad/Mac
+   - Add consistent empty states and error views
 
-1. **Implement Clear Navigation Pattern**
-   - Create a consistent three-panel navigation for iPad/Mac: 
-     - Models panel
-     - Chats list panel
-     - Chat detail panel
-   - For iPhone, use a tab-based navigation:
-     - Models tab
-     - Chats tab with drill-down to chat detail
-     - Settings tab
-   - Estimated time: 3-4 days
+2. **Enhance Chat Experience** (3-4 days)
+   - Add proper typing indicators
+   - Create message status indicators
+   - Implement improved input controls
+   - Add support for better multimodal display
 
-2. **Redesign Create Chat Experience**
-   - Separate model selection from chat creation
-   - Implement a stepwise flow:
-     1. Select model
-     2. Configure model settings (if applicable)
-     3. Create chat with name/description
-   - Add visual indication of selected model in chat list
-   - Estimated time: 2 days
+3. **Add Model Selection UI** (3-4 days)
+   - Create model browser with capabilities information
+   - Add model configuration options
+   - Implement model switching UI
+   - Show loading and progress indicators
 
-### Phase 4: Visual and Interaction Polish
+### Phase 4: Testing & Refinement (1-2 weeks)
 
-1. **Feedback and State Indicators**
-   - Add typing indicators for AI responses
-   - Implement toast notifications for system events
-   - Create consistent empty states
-   - Add loading animations for model switching and initialization
-   - Estimated time: 2-3 days
+1. **Implement Test Suite** (3-4 days)
+   - Create unit tests for core functionality
+   - Add UI tests for critical flows
+   - Implement performance benchmarks
+   - Create automated test scripts
 
-2. **Implement Consistent Interaction Patterns**
-   - Add swipe actions to chat list and messages
-   - Implement long-press context menus
-   - Create standardized action buttons
-   - Add haptic feedback for primary actions
-   - Estimated time: 1-2 days
+2. **Performance Optimization** (3-4 days)
+   - Optimize memory usage during model loading
+   - Improve CoreData performance
+   - Optimize image handling for multimodal inputs
+   - Add caching for frequently accessed data
 
-### Implementation Details
+3. **Final Polish** (3-4 days)
+   - Add accessibility improvements
+   - Implement localization
+   - Create onboarding experience
+   - Prepare for App Store submission
 
-#### 1. AIChatModel Refactoring
+## Testing Guidance
 
-```swift
-// NEW: Create a ModelManager to handle model operations
-class ModelManager: ObservableObject {
-    @Published var availableModels: [ModelInfo] = []
-    @Published var isLoading: Bool = false
-    @Published var loadingProgress: Double = 0
-    @Published var currentModel: ModelInfo?
-    
-    func loadModel(_ modelInfo: ModelInfo) async throws { ... }
-    func switchModel(for chat: Chat, to model: ModelInfo) async throws { ... }
-    func getAvailableModels() -> [ModelInfo] { ... }
-}
+### 1. CoreData Validation Tests
 
-// NEW: Create a unified storage manager
-class ChatStorageManager {
-    static let shared = ChatStorageManager()
-    
-    // CoreData container
-    let persistenceController = PersistenceController.shared
-    
-    // Create a chat
-    func createChat(title: String, model: ModelInfo) -> Chat { ... }
-    
-    // Get all chats
-    func getAllChats() -> [Chat] { ... }
-    
-    // Migration utilities
-    func migrateFileBasedChatsToCoreData() async throws { ... }
-}
+After making CoreData-related changes, perform these validations:
 
-// REFACTORED: Simplify AIChatModel to focus on UI state and delegate other responsibilities
-@MainActor
-final class AIChatModel: ObservableObject {
-    @Published var messages: [Message] = []
-    @Published var typingState: TypingState = .idle
-    
-    // Dependencies
-    private let modelManager: ModelManager
-    private let storageManager: ChatStorageManager
-    
-    // Current chat reference
-    private(set) var currentChat: Chat?
-    
-    init(modelManager: ModelManager, storageManager: ChatStorageManager) {
-        self.modelManager = modelManager
-        self.storageManager = storageManager
-    }
-    
-    func setCurrentChat(_ chat: Chat) { ... }
-    func sendMessage(_ text: String) async { ... }
-}
-```
+1. **Basic CRUD Operations**:
+   - Create a new chat 
+   - Add messages to the chat 
+   - Retrieve chats and messages 
+   - Update chat title 
+   - Delete a chat 
 
-#### 2. Unified Chat List View
+2. **Data Consistency Checks**:
+   - Create chat, close app, verify chat persists on relaunch 
+   - Send messages, verify they appear in correct order 
+   - Switch between chats, verify correct messages load 
+   - Verify chat title updates correctly 
 
-```swift
-struct UnifiedChatListView: View {
-    @EnvironmentObject var aiChatModel: AIChatModel
-    @EnvironmentObject var modelManager: ModelManager
-    
-    @State private var showNewChatSheet = false
-    @State private var searchText = ""
-    
-    var body: some View {
-        NavigationSplitView {
-            VStack {
-                // Create new chat button
-                Button(action: { showNewChatSheet = true }) {
-                    HStack {
-                        Image(systemName: "plus.circle.fill")
-                        Text("New Chat")
-                        Spacer()
-                    }
-                    .padding()
-                    .background(Theme.backgroundSecondary)
-                    .cornerRadius(10)
-                }
-                .padding(.horizontal)
-                
-                // Chat list with unified style
-                ChatListContent(searchText: searchText)
-            }
-            .searchable(text: $searchText, prompt: "Search chats")
-            .navigationTitle("Chats")
-            .sheet(isPresented: $showNewChatSheet) {
-                CreateChatView()
-            }
-        } detail: {
-            WelcomeView()
-        }
-    }
-}
+3. **Edge Cases**:
+   - Create chat with same name as existing chat 
+   - Create very long chat names/messages 
+   - Delete chat while sending a message 
 
-// Reusable chat list component
-struct ChatListContent: View {
-    @EnvironmentObject var aiChatModel: AIChatModel
-    @FetchRequest var chats: FetchedResults<Chat>
-    
-    var searchText: String
-    
-    init(searchText: String) {
-        self.searchText = searchText
-        
-        // Configure fetch request with search if needed
-        let request: NSFetchRequest<Chat> = Chat.fetchRequest()
-        if !searchText.isEmpty {
-            request.predicate = NSPredicate(format: "title CONTAINS[cd] %@", searchText)
-        }
-        request.sortDescriptors = [NSSortDescriptor(keyPath: \Chat.updatedAt, ascending: false)]
-        
-        self._chats = FetchRequest(fetchRequest: request, animation: .default)
-    }
-    
-    var body: some View {
-        List {
-            ForEach(chats) { chat in
-                NavigationLink(destination: ChatDetailView(chat: chat)) {
-                    ChatListCell(chat: chat)
-                }
-                .swipeActions {
-                    Button(role: .destructive) {
-                        deleteChat(chat)
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                    
-                    Button {
-                        renameChat(chat)
-                    } label: {
-                        Label("Rename", systemImage: "pencil")
-                    }
-                    .tint(Theme.primary)
-                }
-            }
-        }
-    }
-}
-```
+### 2. Model Loading Tests
 
-#### 3. Model Selection UI
+1. **Initialization**:
+   - Verify model loads correctly on app start 
+   - Check console for any model loading errors 
 
-```swift
-struct ModelSelectionView: View {
-    @EnvironmentObject var modelManager: ModelManager
-    @Binding var selectedModel: ModelInfo?
-    
-    var body: some View {
-        VStack {
-            Text("Select a Model")
-                .font(.title)
-                .padding()
-            
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 300))], spacing: 16) {
-                    ForEach(modelManager.availableModels) { model in
-                        ModelCard(model: model, isSelected: selectedModel?.id == model.id)
-                            .onTapGesture {
-                                selectedModel = model
-                            }
-                    }
-                }
-                .padding()
-            }
-            
-            Button("Continue") {
-                // Navigate to next step
-            }
-            .buttonStyle(PrimaryButtonStyle())
-            .padding()
-            .disabled(selectedModel == nil)
-        }
-    }
-}
+2. **Chat Response**:
+   - Send a message and verify AI responds 
+   - Check response quality and formatting 
+   - Verify token count and timing information 
 
-struct ModelCard: View {
-    var model: ModelInfo
-    var isSelected: Bool
-    
-    var body: some View {
-        VStack(alignment: .leading) {
-            HStack {
-                Text(model.name)
-                    .font(.headline)
-                Spacer()
-                if isSelected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(Theme.primary)
-                }
-            }
-            
-            Text(model.description)
-                .font(.subheadline)
-                .foregroundColor(Theme.textSecondary)
-                .padding(.vertical, 4)
-            
-            HStack {
-                Label("\(model.parameters) parameters", systemImage: "cpu")
-                Spacer()
-                Label(model.sizeFormatted, systemImage: "externaldrive")
-            }
-            .font(.caption)
-            .foregroundColor(Theme.textSecondary)
-        }
-        .padding()
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(isSelected ? Theme.primary : Theme.divider, lineWidth: isSelected ? 2 : 1)
-                .background(
-                    RoundedRectangle(cornerRadius: 12)
-                        .fill(isSelected ? Theme.primary.opacity(0.1) : Theme.backgroundSecondary)
-                )
-        )
-    }
-}
-```
+### 3. Error Handling Tests
 
-### Testing Milestones
+1. **Array Safety**:
+   - Test with empty message arrays
+   - Test rapid message sending
+   - Test concurrent access to message arrays
 
-1. **Architecture Testing**
-   - Verify model loading and initialization
-   - Test chat creation and storage
-   - Validate CoreData migration from file-based storage
+2. **Recovery**:
+   - Force-quit during message send, verify app recovers 
+   - Simulate disk full condition 
+   - Test network connectivity changes 
 
-2. **UI Flow Testing**
-   - Validate navigation patterns on different devices
-   - Test model selection and chat creation flow
-   - Verify state persistence across app launches
+### 4. UI Transition Tests
 
-3. **Performance Testing**
-   - Measure chat loading speed with CoreData vs. file-based
-   - Test UI responsiveness during model loading
-   - Verify memory usage patterns
+1. **View Transitions**:
+   - Navigate between all major screens 
+   - Verify animations are smooth 
+   - Test orientation changes 
+   - Test different device sizes 
 
-### Total Estimated Implementation Time: 3-4 weeks
+2. **Interactive Elements**:
+   - Verify all buttons and controls work 
+   - Test keyboard interactions 
+   - Verify scrolling behavior in chat history 
+
+## Next Immediate Steps
+
+1. Complete end-to-end testing of chat functionality with the fixed model loading
+2. Implement consistent CoreData access pattern across all remaining files
+3. Add error recovery for common failure scenarios
+4. Begin design work on improved model management

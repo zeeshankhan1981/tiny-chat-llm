@@ -29,7 +29,8 @@ extension AIChatModel {
         // Clear existing messages for this chat
         if let existingMessages = chat.messages as? Set<MessageEntity> {
             for message in existingMessages {
-                PersistenceController.shared.container.viewContext.delete(message)
+                // Use the same viewContext approach as in the main class
+                viewContext.delete(message)
             }
         }
         
@@ -66,16 +67,9 @@ extension AIChatModel {
         
         // Reset model state
         self.llamaState = LlamaState()
-        if self.sdPipeline != nil {
-            Task.detached {
-                await self.sdPipeline?.unloadResources()
-            }
-        }
         
-        // Load the appropriate model
-        if chat.title == "MobileVLM V2 3B" || chat.title == "Chat" {
-            loadLlava()
-        }
+        // Load the appropriate model - only MobileVLM is supported now
+        loadLlava()
     }
     
     // Override the send function to save messages to CoreData
@@ -95,15 +89,18 @@ extension AIChatModel {
         self.start_predicting_time = DispatchTime.now()
         
         Task {
-            var prompt = ""
-            if self.chat_name == "Chat" || self.chat_name == "MobileVLM V2 3B" {
-                prompt = getConversationPromptLlava(messages: self.messages)
-            } else if self.chat_name == "Image Creation" {
-                prompt = getConversationPromptSD(messages: self.messages)
-            }
+            // For all chat types, use Llava now
+            let prompt = getConversationPromptLlava(messages: self.messages)
             
             var message = Message(sender: .system, text: "", tok_sec: 0)
             self.messages.append(message)
+            
+            // Guard against array access errors
+            guard !self.messages.isEmpty, self.messages.count > 1 else {
+                print("Error: messages array is empty or has insufficient elements")
+                return
+            }
+            
             let messageIndex = self.messages.endIndex - 1
             
             // Save initial empty system message
@@ -111,38 +108,42 @@ extension AIChatModel {
                 _ = ChatManager.shared.addMessage(to: chat, from: message)
             }
             
-            if self.chat_name == "Chat" || self.chat_name == "MobileVLM V2 3B" {
-                await llamaState.completeLlava(
-                    text: prompt,
-                    { str in
-                        message.state = .predicting
-                        message.text += str
-                        
-                        var updatedMessages = self.messages
-                        updatedMessages[messageIndex] = message
-                        self.messages = updatedMessages
-                        
-                        // Update the message in CoreData periodically (not every token to avoid performance issues)
-                        if self.numberOfTokens % 10 == 0, let chat = self.currentChat {
-                            Task {
-                                _ = ChatManager.shared.addMessage(to: chat, from: message)
-                            }
-                        }
-                        
-                        self.AI_typing += 1
-                        self.numberOfTokens += 1
+            // Process with Llava
+            await llamaState.completeLlava(
+                text: prompt,
+                { str in
+                    message.state = .predicting
+                    message.text += str
+                    
+                    // Guard against race conditions by checking array bounds
+                    guard messageIndex < self.messages.count else {
+                        print("Error: messageIndex out of bounds")
+                        return
                     }
-                )
-                self.total_sec = Double((DispatchTime.now().uptimeNanoseconds - self.start_predicting_time.uptimeNanoseconds)) / 1_000_000_000
-                message.tok_sec = Double(self.numberOfTokens)/self.total_sec
-                print("number of tokens: \(self.numberOfTokens), total time: \(self.total_sec), token/sec: \(message.tok_sec)")
-            } else if self.chat_name == "Image Creation" {
-                let pr = prompt
-                self.AI_typing += 1
-                try await Task.sleep(nanoseconds: 1_000_000_00) // wait 0.1 second for UI to update
-                let image = await self.sdGen(prompt: pr)
-                message.image = image
-                self.AI_typing += 1
+                    
+                    var updatedMessages = self.messages
+                    updatedMessages[messageIndex] = message
+                    self.messages = updatedMessages
+                    
+                    // Update the message in CoreData periodically (not every token to avoid performance issues)
+                    if self.numberOfTokens % 10 == 0, let chat = self.currentChat {
+                        Task {
+                            _ = ChatManager.shared.addMessage(to: chat, from: message)
+                        }
+                    }
+                    
+                    self.AI_typing += 1
+                    self.numberOfTokens += 1
+                }
+            )
+            self.total_sec = Double((DispatchTime.now().uptimeNanoseconds - self.start_predicting_time.uptimeNanoseconds)) / 1_000_000_000
+            message.tok_sec = Double(self.numberOfTokens)/self.total_sec
+            print("number of tokens: \(self.numberOfTokens), total time: \(self.total_sec), token/sec: \(message.tok_sec)")
+            
+            // Guard against another potential array bounds issue
+            guard messageIndex < self.messages.count else {
+                print("Error: messageIndex out of bounds when finalizing message")
+                return
             }
             
             // Final update to CoreData

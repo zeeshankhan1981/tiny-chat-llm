@@ -7,7 +7,7 @@ class SimpleChatManager {
     
     // Get list of available chats
     func getAvailableChats() -> [String] {
-        var chatTitles = ["MobileVLM V2 3B"] // Default chat
+        var chatTitles: [String] = []
         
         do {
             let fileManager = FileManager.default
@@ -19,7 +19,7 @@ class SimpleChatManager {
                 for file in files {
                     if file.pathExtension == "json" {
                         let chatName = file.deletingPathExtension().lastPathComponent
-                        if !chatTitles.contains(chatName) {
+                        if !chatTitles.contains(chatName) && chatName != "MobileVLM V2 3B" {
                             chatTitles.append(chatName)
                         }
                     }

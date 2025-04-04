@@ -1,6 +1,6 @@
 # TinyChat
 
-A privacy-focused iOS app that runs Multimodal LLM, Stable Diffusion, and Whisper fully on-device. No data leaves your phone.
+A privacy-focused iOS app that runs Multimodal LLM fully on-device. No data leaves your phone.
 
 <p align="center">
   <img src="Screenshots/app_banner.png" alt="TinyChat Banner" width="800"/>
@@ -48,8 +48,7 @@ open PocketGPT.xcodeproj
 
 3. Download models
    - MobileVLM V2 3B (4-bit quantized)
-   - Whisper Base (English)
-   - Place them in the appropriate folders (see TECHNICAL_OVERVIEW.md)
+   - Place it in the appropriate folder (see TECHNICAL_OVERVIEW.md)
 
 4. Build and run on your device
    - Select your device as the build target
@@ -61,7 +60,6 @@ TinyChat uses optimized, quantized machine learning models to run entirely on yo
 
 1. **LLM Engine**: Uses [llamaforked](https://github.com/yyyoungman/llamaforked) (a fork of llama.cpp) to run language models on iOS
 2. **Multimodal**: [MobileVLM](https://github.com/Meituan-AutoML/MobileVLM) model for understanding images and text
-3. **Voice Recognition**: [Whisper](https://github.com/openai/whisper) for speech-to-text conversion
 
 All processing happens on your device with no data sent to external servers.
 
@@ -82,12 +80,11 @@ The Todoist-inspired UI includes:
 This app integrates several open-source projects and models:
 
 ### Code
-- Inference engine: [llama.cpp](https://github.com/ggerganov/llama.cpp) ([forked](https://github.com/yyyoungman/llamaforked)) for language and audio models
+- Inference engine: [llama.cpp](https://github.com/ggerganov/llama.cpp) ([forked](https://github.com/yyyoungman/llamaforked)) for language models
 - UI inspiration: [Todoist](https://todoist.com) for clean, task-focused design
 
 ### Models
 - MLLM: [MobileVLM V2 3B](https://github.com/Meituan-AutoML/MobileVLM), quantized to 4 bits
-- Audio: [Whisper Base](https://github.com/openai/whisper), English model
 
 ## Credits
 
@@ -105,4 +102,3 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 - [llamaforked](https://github.com/yyyoungman/llamaforked) for the efficient LLM implementation
 - [MobileVLM](https://github.com/Meituan-AutoML/MobileVLM) team for the mobile-optimized multimodal model
-- [OpenAI](https://openai.com/) for the Whisper model

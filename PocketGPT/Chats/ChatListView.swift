@@ -13,7 +13,7 @@ struct ChatListView: View {
     @Binding var chat_titles: [String]
     @Binding var chat_title: String?
     @State var chats_previews:[Dictionary<String, String>] = []
-    @State var current_detail_view_name:String? = "MobileVLM V2 3B"
+    @State var current_detail_view_name:String? = nil
     @State private var toggleSettings = false
     @State private var toggleAddChat = false
     @State private var newChatName: String = ""
@@ -22,12 +22,11 @@ struct ChatListView: View {
     
     func get_chat_mode_list() -> [Dictionary<String, String>]?{
         var res: [Dictionary<String, String>] = []
-        res.append(["title":"MobileVLM V2 3B","icon":"", "message":"", "time": "10:30 AM","model":"","chat":""])
         
         // Get other chats
         if let chatList = get_chats_list() {
             for chat in chatList {
-                if let title = chat["title"], title != "MobileVLM V2 3B" && title != "Image Creation" {
+                if let title = chat["title"] {
                     res.append(chat)
                 }
             }
@@ -59,8 +58,7 @@ struct ChatListView: View {
         
         // Reset to default chat if needed
         if self.chat_titles.isEmpty || !self.chat_titles.contains(chat_title ?? "") {
-            chat_title = "MobileVLM V2 3B"
-            aiChatModel.prepare(chat_title: "MobileVLM V2 3B")
+            chat_title = nil
         }
     }
     
@@ -72,8 +70,7 @@ struct ChatListView: View {
             
             // Reset to default chat if needed
             if self.chat_titles.isEmpty || (chat_title == elem["title"]) {
-                chat_title = "MobileVLM V2 3B"
-                aiChatModel.prepare(chat_title: "MobileVLM V2 3B")
+                chat_title = nil
             }
         }
     }
@@ -88,7 +85,6 @@ struct ChatListView: View {
             // Create a new chat with detailed settings that match the default model
             let chatInfo: [String: Any] = [
                 "title": newChatName,
-                "model": "MobileVLM V2 3B", // Use the same model as the default chat
                 "inference": "llava",
                 "prompt_format": "llava",
                 "temperature": 0.6,
@@ -105,7 +101,6 @@ struct ChatListView: View {
                 
                 // Switch to the new chat and force model initialization
                 chat_title = newChatName
-                aiChatModel.modelType = "MobileVLM V2 3B" // Explicitly set model type
                 aiChatModel.prepare(chat_title: newChatName)
                 
                 toggleAddChat = false
@@ -151,31 +146,25 @@ struct ChatListView: View {
                                             .foregroundColor(Theme.textPrimary)
                                             .fontWeight(.medium)
                                         
-                                        // Only show details for non-default chats
-                                        if title != "MobileVLM V2 3B" {
-                                            if let chat = chats_previews.first(where: { $0["title"] == title }),
-                                               let time = chat["time"] {
-                                                Text("Last updated: \(time)")
-                                                    .font(.caption)
-                                                    .foregroundColor(Theme.textSecondary)
-                                            }
+                                        if let chat = chats_previews.first(where: { $0["title"] == title }),
+                                           let time = chat["time"] {
+                                            Text("Last updated: \(time)")
+                                                .font(.caption)
+                                                .foregroundColor(Theme.textSecondary)
                                         }
                                     }
                                     
                                     Spacer()
                                     
-                                    // Only show delete button for non-default chats
-                                    if title != "MobileVLM V2 3B" {
-                                        Button(action: {
-                                            if let chat = chats_previews.first(where: { $0["title"] == title }) {
-                                                delete(at: chat)
-                                            }
-                                        }) {
-                                            Image(systemName: "trash")
-                                                .foregroundColor(Theme.primary)
+                                    Button(action: {
+                                        if let chat = chats_previews.first(where: { $0["title"] == title }) {
+                                            delete(at: chat)
                                         }
-                                        .buttonStyle(BorderlessButtonStyle())
+                                    }) {
+                                        Image(systemName: "trash")
+                                            .foregroundColor(Theme.primary)
                                     }
+                                    .buttonStyle(BorderlessButtonStyle())
                                 }
                             }
                         }
@@ -195,10 +184,7 @@ struct ChatListView: View {
             .navigationTitle("TinyChat")
             .foregroundColor(Theme.primary)
             .onAppear() {
-                if onStartup {
-                    chat_title = "MobileVLM V2 3B"
-                    onStartup = false
-                }
+                onStartup = false
             }
             // Add Chat Alert
             .alert("New Chat", isPresented: $toggleAddChat) {
