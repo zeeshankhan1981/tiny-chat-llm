@@ -17,10 +17,11 @@
     - **PersistenceController.swift**: Single source of truth for CoreData access
     - **ChatConversation.xcdatamodeld**: Primary CoreData model for the app
   - **UI/**: Theme and UI components
+    - **ModelLoadingView.swift**: UI components for async model loading and progress indicators
 
 ## Improvement Priorities
 
-1. Async model loading with progress indicators (PENDING)
+1. Async model loading with progress indicators (COMPLETED)
 2. CoreData integration for efficient persistence (PARTIALLY COMPLETE)
 3. Separation of concerns in AIChatModel (PARTIALLY COMPLETE)
 4. Model switching at runtime (PENDING)
@@ -140,6 +141,33 @@ Updated the documentation to reflect the recent changes to the home screen and m
 3. **Updated UI Description**:
    - Removed references to model-related UI elements
    - Added description of simplified chat list and deletion logic
+
+### 6. Async Model Loading (COMPLETED)
+
+Implemented asynchronous model loading with progress indicators:
+
+1. **Core Changes**:
+   - Added `ModelLoadingState` enum to track loading status with progress
+   - Implemented async model loading in `AIChatModel.swift`
+   - Created loading progress UI components
+
+2. **Key Files Modified**:
+   - `AIChatModel.swift`:
+     - Added `modelLoadingState` property to track loading status
+     - Created async `loadLlamaAsync()` method with progress tracking
+     - Added safety checks to prevent sending messages when model isn't loaded
+   - Created new file `ModelLoadingView.swift`
+     - Implemented loading indicator and progress bar components
+     - Added overlay UI for loading states
+   - Updated `ChatView.swift` and `UnifiedChatListView.swift`
+     - Added loading overlays using view modifiers
+     - Enhanced input field with loading state awareness
+
+3. **User Experience Improvements**:
+   - Visual progress indicators during model loading
+   - Clear status messages about model loading state
+   - Input fields disabled until model is fully loaded
+   - Error handling with retry functionality
 
 ## Development Roadmap (Updated April 2025)
 

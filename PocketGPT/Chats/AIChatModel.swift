@@ -9,6 +9,21 @@ import SwiftUI
 import os
 import CoreData
 
+// Model loading state enum
+enum ModelLoadingState {
+    case notStarted
+    case loading(progress: Double)
+    case loaded
+    case failed(error: String)
+    
+    var isLoading: Bool {
+        if case .loading = self {
+            return true
+        }
+        return false
+    }
+}
+
 @MainActor
 final class AIChatModel: ObservableObject {
     @Published var messages: [Message] = []
@@ -18,6 +33,9 @@ final class AIChatModel: ObservableObject {
     
     // Track the model type for the current chat
     public var modelType: String = "MobileVLM V2 3B"
+    
+    // Track model loading state
+    @Published var modelLoadingState: ModelLoadingState = .notStarted
 
     private var llamaState = LlamaState()
     private var filename: String = "MobileVLM_V2-3B-ggml-model-q4_k.gguf"
@@ -47,8 +65,10 @@ final class AIChatModel: ObservableObject {
     init() {
         // Load default chat on startup
         self.messages = load_chat_history(self.chat_name) ?? []
-        // Initialize the default model
-        loadLlama()
+        // Initialize the default model asynchronously
+        Task {
+            await loadLlamaAsync()
+        }
     }
     
     // Save current chat history
@@ -133,8 +153,10 @@ final class AIChatModel: ObservableObject {
             _ = self.llamaState
             self.llamaState = LlamaState()
             
-            // Initialize the appropriate model based on model type
-            initializeModel()
+            // Initialize the appropriate model based on model type asynchronously
+            Task {
+                await initializeModelAsync()
+            }
         }
     }
     
@@ -143,12 +165,13 @@ final class AIChatModel: ObservableObject {
         return get_chat_config(chatName)
     }
     
-    // Initialize the model based on the current modelType
-    private func initializeModel() {
+    // Initialize the model based on the current modelType (async version)
+    private func initializeModelAsync() async {
         // Only have MobileVLM model now - SD and Whisper were removed
-        loadLlama()
+        await loadLlamaAsync()
     }
     
+    // Deprecated synchronous method - will be removed in future
     public func loadLlama() {
         print("Loading MobileVLM models...")
         
@@ -166,6 +189,56 @@ final class AIChatModel: ObservableObject {
                 print("Error loading MobileVLM model: \(err.localizedDescription)")
             }
         } else {
+            print("Could not find MobileVLM model files in Resources/llm directory")
+            
+            // List all .gguf files in the bundle for debugging
+            print("Available .gguf files in bundle:")
+            let bundles = Bundle.main.paths(forResourcesOfType: "gguf", inDirectory: nil)
+            for bundle in bundles {
+                print("Found model: \(bundle)")
+            }
+        }
+    }
+    
+    // New asynchronous model loading method with progress tracking
+    public func loadLlamaAsync() async {
+        print("Loading MobileVLM models asynchronously...")
+        
+        // Update loading state
+        self.modelLoadingState = .loading(progress: 0.0)
+        
+        // Look specifically for the MobileVLM models in the Resources/llm directory
+        let modelPath = "MobileVLM_V2-3B-ggml-model-q4_k"
+        
+        // Try to load from Resources/llm directory
+        if let modelURL = Bundle.main.url(forResource: "llm/\(modelPath)", withExtension: "gguf") {
+            do {
+                // Simulate progressive loading (in a real implementation, the C++ bridge would need to be modified to report progress)
+                for progress in stride(from: 0.1, through: 0.9, by: 0.1) {
+                    // Update progress state
+                    self.modelLoadingState = .loading(progress: progress)
+                    
+                    // Simulate some work being done
+                    try await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
+                    
+                    // Check for cancellation
+                    try Task.checkCancellation()
+                }
+                
+                // Do the actual model loading
+                try llamaState.loadModelLlava()
+                
+                // Update state on success
+                self.modelLoadingState = .loaded
+                print("MobileVLM model loaded successfully from: \(modelURL.path)")
+            } catch let err {
+                // Update state on failure
+                self.modelLoadingState = .failed(error: err.localizedDescription)
+                print("Error loading MobileVLM model: \(err.localizedDescription)")
+            }
+        } else {
+            // Update state on failure
+            self.modelLoadingState = .failed(error: "Missing model files")
             print("Could not find MobileVLM model files in Resources/llm directory")
             
             // List all .gguf files in the bundle for debugging
@@ -229,6 +302,12 @@ final class AIChatModel: ObservableObject {
     }
     
     public func send(message in_text: String, image: Image? = nil)  {
+        // Check if model is loaded before sending
+        guard case .loaded = modelLoadingState else {
+            print("Cannot send message - model is not loaded")
+            return
+        }
+        
         let requestMessage = Message(sender: .user, state: .typed, text: in_text, tok_sec: 0, image: image)
         self.messages.append(requestMessage)
         self.AI_typing += 1

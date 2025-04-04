@@ -54,97 +54,114 @@ struct ChatView: View {
         }
     }
     
-    // Group messages by date
-    private func groupMessagesByDate(_ messages: [Message]) -> [MessageGroup] {
-        let calendar = Calendar.current
-        
-        // Group messages by day
-        let grouped = Dictionary(grouping: messages) { message in
-            calendar.startOfDay(for: message.timestamp)
+    // Computed property to check if model is loaded and ready
+    var isModelReady: Bool {
+        if case .loaded = aiChatModel.modelLoadingState {
+            return true
         }
-        
-        // Convert to MessageGroup array and sort by date
-        return grouped.map { (date, messages) in
-            MessageGroup(date: date, messages: messages.sorted { $0.timestamp < $1.timestamp })
-        }.sorted { $0.date < $1.date }
+        return false
     }
     
-    func scrollToBottom(with_animation: Bool = false) {
-        var scroll_bug = true
-#if os(macOS)
-        scroll_bug = false
-#else
-        if #available(iOS 16.4, *){
-            scroll_bug = false
+    // Computed property to check if model is still loading
+    var isModelLoading: Bool {
+        if case .loading = aiChatModel.modelLoadingState {
+            return true
         }
+        return false
+    }
+    
+    private var scrollToBottomButton: some View {
+        Button(action: {
+            scrollToBottom()
+        }) {
+            Image(systemName: "arrow.down.circle.fill")
+                .font(.system(size: 30))
+                .foregroundColor(Theme.primary)
+                .shadow(color: Color.black.opacity(0.2), radius: 2, x: 0, y: 2)
+                .background(Color.white.opacity(0.8))
+                .clipShape(Circle())
+        }
+    }
+    
+    private func reload() {
+        let title = chat_title ?? ""
+        
+        if chat_title == "Chat" || chat_title == "MobileVLM V2 3B" {
+            aiChatModel.messages = []
+        } else {
+            aiChatModel.chat_name = title
+            
+#if !targetEnvironment(simulator)
+            let last_msg_count = aiChatModel.messages.count
+#endif
+            if let history = load_chat_history(title) {
+                aiChatModel.messages = history
+            }
+        }
+        
+        self.scrollToBottom(with_animation: false)
+    }
+    
+    func scrollToBottom(with_animation: Bool = true) {
+#if targetEnvironment(simulator)
+        let scroll_bug = false
+#else
+        let scroll_bug = true
 #endif
         if scroll_bug {
             return
         }
         let last_msg = aiChatModel.messages.last
-        if last_msg != nil && last_msg?.id != nil && scrollProxy != nil {
+        if let scrollProxy = scrollProxy {
             if with_animation {
                 withAnimation {
-                    scrollProxy?.scrollTo("latest")
+                    scrollProxy.scrollTo("latest")
                 }
             } else {
-                scrollProxy?.scrollTo("latest")
+                scrollProxy.scrollTo("latest")
             }
         }
     }
     
-    func reload() {
-        guard let chat_title else {
-            return
-        }
-        print("\nreload\n")
-        if chat_title == "Chat" || chat_title == "MobileVLM V2 3B" {
-            placeholderString = "Message"
-        } else if chat_title == "Image Creation" {
-            placeholderString = "Describe the image"
-        }
-        aiChatModel.prepare(chat_title: chat_title)
-    }
-    
-    private func delayIconChange() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            reload_button_icon = "arrow.counterclockwise.circle"
-        }
-    }
-    
-    private var scrollToBottomButton: some View {
-        Button {
-            Task {
-                scrollToBottom(with_animation: true)
+    // This method needs to be private since it uses the private MessageGroup type
+    private func groupMessagesByDate(_ messages: [Message]) -> [MessageGroup] {
+        var groups: [MessageGroup] = []
+        let calendar = Calendar.current
+        
+        for message in messages {
+            // Use a default date if timestamp is missing
+            let messageDate = message.timestamp ?? Date()
+            let dateComponents = calendar.dateComponents([.day, .month, .year], from: messageDate)
+            let dateOnly = calendar.date(from: dateComponents) ?? messageDate
+            
+            if let index = groups.firstIndex(where: { calendar.isDate($0.date, inSameDayAs: dateOnly) }) {
+                // Add to existing group
+                groups[index].messages.append(message)
+            } else {
+                // Create new group
+                let newGroup = MessageGroup(date: dateOnly, messages: [message])
+                groups.append(newGroup)
             }
-        } label: {
-            Image(systemName: "arrow.down.circle.fill")
-                .resizable()
-                .foregroundColor(Theme.primary)
-                .frame(width: 32, height: 32)
-                .background(Theme.backgroundPrimary)
-                .clipShape(Circle())
-                .shadow(color: Theme.shadowColor, radius: 2, x: 0, y: 1)
         }
-        .buttonStyle(BorderlessButtonStyle())
-        .padding(.bottom, 8)
+        
+        // Sort groups by date (oldest first)
+        return groups.sorted { $0.date < $1.date }
     }
     
-    // Custom date separator similar to Todoist's style
-    private struct DateSeparator: View {
-        var date: String
+    // Date separator view for chat sections
+    struct DateSeparator: View {
+        let date: String
         
         var body: some View {
             HStack {
-                VStack { Divider().background(Theme.divider) }
+                VStack { Divider() }
                 Text(date)
                     .font(.caption)
-                    .foregroundColor(Theme.textSecondary)
-                    .padding(.horizontal, 8)
-                VStack { Divider().background(Theme.divider) }
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                VStack { Divider() }
             }
             .padding(.vertical, 8)
-            .padding(.horizontal, 16)
         }
     }
     
@@ -193,6 +210,7 @@ struct ChatView: View {
                 // Input area at bottom
                 LLMTextInput(messagePlaceholder: placeholderString)
                     .focused($focusedField, equals: .firstName)
+                    .environmentObject(aiChatModel)
             }
             .background(Theme.backgroundPrimary)
             .onChange(of: chat_title) { chat_name in
@@ -239,5 +257,26 @@ struct ChatView: View {
                     .padding(.bottom, 80)
             }
         }
+        .overlay(
+            VStack {
+                if isModelLoading {
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Loading model...")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    .padding(12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color(.systemBackground))
+                            .shadow(color: Color.black.opacity(0.1), radius: 5, x: 0, y: 2)
+                    )
+                    .padding(.top, 20)
+                }
+                Spacer()
+            }
+        )
     }
 }

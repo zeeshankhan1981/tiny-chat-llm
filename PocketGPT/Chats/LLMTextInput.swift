@@ -45,6 +45,22 @@ struct LLMTextInput: View {
     @State private var isTextItalic = false
     @State private var isTextCode = false
     
+    // Computed property to check if model is loaded and ready
+    var isModelReady: Bool {
+        if case .loaded = aiChatModel.modelLoadingState {
+            return true
+        }
+        return false
+    }
+    
+    // Computed property to check if model is still loading
+    var isModelLoading: Bool {
+        if case .loading = aiChatModel.modelLoadingState {
+            return true
+        }
+        return false
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Quick format bar
@@ -75,6 +91,20 @@ struct LLMTextInput: View {
             Divider()
                 .background(Theme.divider)
             
+            // Model loading status indicator
+            if isModelLoading {
+                HStack(spacing: 4) {
+                    Text("Model loading...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    ProgressView()
+                        .scaleEffect(0.7)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 4)
+            }
+            
             // Image preview with controls
             if selectedImage != nil {
                 VStack(alignment: .leading, spacing: 8) {
@@ -99,79 +129,106 @@ struct LLMTextInput: View {
                     HStack {
                         selectedImage?
                             .resizable()
-                            .scaledToFit()
-                            .frame(height: 80)
-                            .cornerRadius(6)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Theme.divider, lineWidth: 0.5)
-                            )
-                            .shadow(color: Theme.shadowColor, radius: 1, x: 0, y: 1)
-                        
-                        Spacer()
+                            .aspectRatio(contentMode: .fit)
+                            .cornerRadius(8)
+                            .frame(height: 100)
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .background(Theme.backgroundSecondary)
+                .padding(.vertical, 8)
             }
             
-            HStack(alignment: .bottom, spacing: 12) {
-                // Quick actions
-                HStack(spacing: 14) {
-                    PhotosPicker(selection: $selectedItem, matching: .images) {
-                        Image(systemName: "photo")
-                            .foregroundColor(Theme.primary)
-                            .font(.system(size: 20))
-                    }
-                    .buttonStyle(.plain)
+            HStack(alignment: .bottom, spacing: 8) {
+                // Image picker button
+                PhotosPicker(selection: $selectedItem, matching: .images) {
+                    Image(systemName: "photo.circle")
+                        .font(.system(size: 24))
+                        .foregroundColor(Theme.primary)
                 }
-                .padding(.horizontal, 4)
+                .buttonStyle(.plain)
+                .padding(.bottom, 8)
+                .disabled(!isModelReady)
+                .opacity(isModelReady ? 1.0 : 0.6)
                 
-                // Text input field with animated focus state
-                TextField(messagePlaceholder, text: $input_text, axis: .vertical)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 15))
-                    .foregroundColor(Theme.textPrimary)
-                    .padding(.vertical, 12)
-                    .padding(.horizontal, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(isFocused ? Theme.primary.opacity(0.7) : Theme.inputBorder, lineWidth: isFocused ? 1.5 : 1)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Theme.inputBackground)
-                            )
-                    )
-                    .lineLimit(1...5)
-                    .focused($textFieldFocused)
-                    .onChange(of: textFieldFocused) { newValue in
-                        isFocused = newValue
-                        showFormatBar = newValue && !input_text.isEmpty
-                    }
+                // Text field with dynamic height
+                ZStack(alignment: .leading) {
+                    // Empty container to measure height
+                    Text(input_text.isEmpty ? " " : input_text)
+                        .font(.body)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.clear)
+                        .opacity(0)
+                    
+                    TextEditor(text: $input_text)
+                        .frame(minHeight: 36, maxHeight: 120)
+                        .cornerRadius(20)
+                        .font(.body)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, -2)
+                        .background(Theme.backgroundSecondary)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(isFocused ? Theme.primary : Color.clear, lineWidth: 1.5)
+                        )
+                        .overlay(
+                            HStack {
+                                Text(messagePlaceholder)
+                                    .foregroundColor(Theme.textSecondary)
+                                    .font(.body)
+                                    .padding(.leading, 10)
+                                    .opacity(input_text.isEmpty && !textFieldFocused ? 1 : 0)
+                                Spacer()
+                            }
+                        )
+                        .focused($textFieldFocused)
+                        .disabled(!isModelReady)
+                        .opacity(isModelReady ? 1.0 : 0.6)
+                        .onChange(of: textFieldFocused) { newValue in
+                            isFocused = newValue
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                showFormatBar = newValue
+                            }
+                        }
+                }
                 
                 // Send button
-                sendButton
+                Button {
+                    if !input_text.isEmpty {
+                        var image: Image? = nil
+                        if let selectedImage = selectedImage {
+                            image = selectedImage
+                        }
+                        
+                        aiChatModel.send(message: input_text, image: image)
+                        input_text = ""
+                        selectedImage = nil
+                        hideKeyboard()
+                    }
+                } label: {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 30))
+                        .foregroundColor(isModelReady && !input_text.isEmpty ? Theme.primary : Color.gray.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .padding(.bottom, 4)
+                .disabled(!isModelReady || input_text.isEmpty)
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Theme.backgroundSecondary)
-            .onChange(of: selectedItem) { _ in 
-                Task {
-                    if let data = try? await selectedItem?.loadTransferable(type: Data.self) {
-                        if let uiImage = UIImage(data: data) {
-                            let base64 = uiImage.jpegData(compressionQuality: 1)?.base64EncodedString() ?? ""
-                            selectedImage = Image(uiImage: uiImage)
-                            aiChatModel.loadLlavaImage(base64: base64)
-                            textFieldFocused = true // Focus text field after selecting image
-                        }
+            .padding(.vertical, 8)
+        }
+        .onChange(of: selectedItem) { _ in 
+            Task {
+                if let data = try? await selectedItem?.loadTransferable(type: Data.self) {
+                    if let uiImage = UIImage(data: data) {
+                        let base64 = uiImage.jpegData(compressionQuality: 1)?.base64EncodedString() ?? ""
+                        
+                        // Load image into model
+                        aiChatModel.loadLlavaImage(base64: base64)
+                        selectedImage = Image(uiImage: uiImage)
                     }
                 }
-            }
-            .onChange(of: input_text) { newText in
-                if textFieldFocused {
-                    showFormatBar = !newText.isEmpty
-                }
+                selectedItem = nil
             }
         }
     }
@@ -187,34 +244,16 @@ struct LLMTextInput: View {
                 isActive.toggle()
             } label: {
                 Image(systemName: icon)
-                    .foregroundColor(isActive ? Theme.primary : Theme.textSecondary)
-                    .font(.system(size: 16, weight: isActive ? .semibold : .regular))
-                    .padding(6)
+                    .font(.system(size: 14, weight: isActive ? .bold : .regular))
+                    .foregroundColor(isActive ? Theme.primary : Theme.textPrimary)
+                    .frame(width: 30, height: 30)
                     .background(
-                        isActive ? 
-                            RoundedRectangle(cornerRadius: 4)
-                            .fill(Theme.primary.opacity(0.1)) : nil
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isActive ? Theme.primary.opacity(0.1) : Color.clear)
                     )
             }
             .buttonStyle(.plain)
         }
-    }
-    
-    private var sendButton: some View {
-        Button {
-            sendMessageButtonPressed()
-            hideKeyboard()
-        } label: {
-            Image(systemName: "paperplane.fill")
-                .foregroundColor(Theme.primary)
-                .font(.system(size: 20))
-                .frame(width: 36, height: 36)
-                .background(
-                    Circle()
-                        .fill(Theme.primary.opacity(0.1))
-                )
-        }
-        .buttonStyle(.plain)
     }
     
     init(messagePlaceholder: String? = nil) {
@@ -251,6 +290,8 @@ struct LLMTextInput: View {
 }
 
 #Preview {
-    LLMTextInput()
+    LLMTextInput(messagePlaceholder: "Message")
         .environmentObject(AIChatModel())
+        .previewLayout(.sizeThatFits)
+        .padding()
 }

@@ -159,6 +159,7 @@ struct UnifiedChatListView: View {
                     }
                 }
             }
+            .withLoadingOverlay(aiChatModel: aiChatModel)
         } detail: {
             // Default detail view when no chat is selected
             if let selectedTitle = selectedChatTitle {
@@ -171,16 +172,19 @@ struct UnifiedChatListView: View {
                     .onAppear {
                         aiChatModel.setCurrentChat(selectedChat)
                     }
+                    .withLoadingOverlay(aiChatModel: aiChatModel)
                 } else {
                     // Use traditional chat view for file-based storage
                     ChatView(chat_title: $selectedChatTitle)
                         .onAppear {
                             aiChatModel.prepare(chat_title: selectedTitle)
                         }
+                        .withLoadingOverlay(aiChatModel: aiChatModel)
                 }
             } else {
                 // Welcome view when no chat is selected
                 WelcomeView(onCreateNewChat: { showNewChatSheet = true })
+                    .withLoadingOverlay(aiChatModel: aiChatModel)
             }
         }
     }
