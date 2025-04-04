@@ -48,6 +48,8 @@ The app uses a sophisticated message handling system:
 - **Status Indicators**: Visual feedback for message states (sent, error, typing)
 - **Context Menus**: Right-click/long-press options for common actions (copy, save)
 - **Performance Metrics**: Real-time display of tokens per second
+- **Model Loading**: Asynchronous model loading with progress indicators
+- **Error Handling**: Graceful error handling with retry options
 
 ### Rich Text Input
 
@@ -78,7 +80,14 @@ TinyChat uses a forked version of llama.cpp (llamaforked) to run large language 
 - **Integration**: Swift bridging to C++ implementation
 - **Prompt Handling**: Efficiently manages context window and prompt formatting
 
-### 2. Multimodal Capabilities (image + text)
+### 2. Model Management
+
+- **Async Loading**: Models load asynchronously with progress tracking
+- **State Management**: Comprehensive ModelLoadingState enum for tracking loading status
+- **Error Recovery**: Built-in error handling and retry functionality
+- **Resource Management**: Efficient memory usage during loading
+
+### 3. Multimodal Capabilities (image + text)
 
 - **Model**: MobileVLM-V2-3B
 - **Components**: 

@@ -9,7 +9,7 @@ A privacy-focused iOS app that runs Multimodal LLM fully on-device. No data leav
 ## Features
 
 - **Text Chat**: Engage with a modern LLM entirely on your device
-- **Image Understanding**: Show images to the AI and discuss them
+- **Async Model Loading**: Smooth model loading with progress indicators
 - **Complete Privacy**: 100% on-device processing, no API keys or servers needed
 - **Modern UI**: Clean, Todoist-inspired design with message grouping and formatting options
 - **Context Menu**: Easily copy messages or save images
@@ -74,6 +74,8 @@ The Todoist-inspired UI includes:
 - **Attachment Previews**: Enhanced image attachment controls
 - **Context Menus**: Right-click/long-press options for messages
 - **Performance Display**: See token generation speed metrics
+- **Model Loading**: Visual progress indicators during model initialization
+- **Error Handling**: Clear error messages and retry options for model loading
 
 ## Credits
 

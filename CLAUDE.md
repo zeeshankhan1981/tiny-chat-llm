@@ -142,32 +142,24 @@ Updated the documentation to reflect the recent changes to the home screen and m
    - Removed references to model-related UI elements
    - Added description of simplified chat list and deletion logic
 
-### 6. Async Model Loading (COMPLETED)
+### 6. Async Model Loading Implementation (COMPLETED)
 
-Implemented asynchronous model loading with progress indicators:
+Successfully implemented async model loading with progress indicators:
 
-1. **Core Changes**:
-   - Added `ModelLoadingState` enum to track loading status with progress
-   - Implemented async model loading in `AIChatModel.swift`
-   - Created loading progress UI components
+1. **Model Loading State**:
+   - Added `ModelLoadingState` enum with states: `.notLoaded`, `.loading(progress: Double)`, `.loaded`, `.error(String)`
+   - Implemented progress tracking during model loading
+   - Added error handling and retry functionality
 
-2. **Key Files Modified**:
-   - `AIChatModel.swift`:
-     - Added `modelLoadingState` property to track loading status
-     - Created async `loadLlamaAsync()` method with progress tracking
-     - Added safety checks to prevent sending messages when model isn't loaded
-   - Created new file `ModelLoadingView.swift`
-     - Implemented loading indicator and progress bar components
-     - Added overlay UI for loading states
-   - Updated `ChatView.swift` and `UnifiedChatListView.swift`
-     - Added loading overlays using view modifiers
-     - Enhanced input field with loading state awareness
+2. **UI Components**:
+   - Created `ModelLoadingView.swift` for loading overlay
+   - Added progress indicators and error messages
+   - Implemented disabled states for input controls during loading
 
-3. **User Experience Improvements**:
-   - Visual progress indicators during model loading
-   - Clear status messages about model loading state
-   - Input fields disabled until model is fully loaded
-   - Error handling with retry functionality
+3. **Error Handling**:
+   - Added clear error messages for loading failures
+   - Implemented retry functionality
+   - Added user feedback for loading progress
 
 ## Development Roadmap (Updated April 2025)
 
